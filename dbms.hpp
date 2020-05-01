@@ -13,6 +13,7 @@ using namespace std;
 /*
     TODO:   1. Исправить имена (переименовать name to table_name in notepad)
             2. Подумаьт что делать если длина имен не совпадает (добавлять пробелы в конец, реализовать) !!! кажется все работает!
+            3. Утечки памяти.
 */
 
 enum Type { TEXT, LONG };
@@ -39,6 +40,7 @@ public:
     virtual string & Text () = 0;
     virtual long & Long () = 0;
     //virtual IField * operator 
+    virtual ~IField(){}
 };
 
 class ITextField: public IField {
@@ -97,6 +99,7 @@ public:
     {
         return value;
     }
+    ~MyLongField(){}
 };
 
 
@@ -107,6 +110,7 @@ public:
     virtual ITableStruct * SetName ( const string& Name ) = 0;
     virtual vector<struct Columns> & GetVector() = 0;
     virtual string & GetName() = 0;
+    virtual ~ITableStruct() {}
 };
 
 
@@ -180,11 +184,13 @@ class ITable {
 public:    
     virtual void Add () = 0;
     virtual void Delete () = 0;
-    virtual void Drop () = 0;
     virtual IField * GetField ( const string& Name ) = 0;
     virtual bool ReadFirst () = 0;
     virtual bool ReadNext () = 0;
-    virtual void Update () = 0;
+    virtual bool ReadPrevious () = 0;
+    virtual bool LastRecord () = 0;
+    virtual bool IsEnd() = 0;
+
     virtual ~ ITable () {};
 };
 
@@ -199,8 +205,6 @@ struct TableInfo
 };
 
 
-
-
 class MyTable:public ITable {
     
     string name;
@@ -209,14 +213,13 @@ class MyTable:public ITable {
     int amount_cols;
     struct TableInfo service_info;
     vector<IField *> window;
-
+    bool record_read_flag;
 
 private:    
     MyTable(int File, vector<struct Columns> & list, string Name, struct TableInfo info)
     {
-        cout << "in constructor\n";
         name = Name;
-        
+        record_read_flag = false;
         cols.clear();
         for (int i = 0; i < list.size(); i++)
         {
@@ -263,6 +266,8 @@ private:
                 }
             }
         }
+        record_read_flag = true;
+        lseek(fd, service_info.current_record, SEEK_SET);
     }
     void WriteRecord()
     {
@@ -274,7 +279,8 @@ private:
                 if (write(fd, window[i]->Text().data(), cols[i].size) < 0)
                 {
                     throw TableException("Can't add a record to table " + name);
-                }               
+                }   
+                //cout << window[i]->Text() << endl;          
             }
             else
             {
@@ -282,8 +288,19 @@ private:
                 {
                     throw TableException("Can't add a record to table " + name);
                 }
+                //cout << window[i]->Long() << endl;
             }
         }
+        lseek(fd, service_info.current_record, SEEK_SET);
+    }
+    void ModifyServiceInfo()
+    {
+        lseek(fd, 0L, SEEK_SET);
+        if (write(fd, &service_info, sizeof(service_info)) < 0)
+        {
+            throw TableException("Can't update service info in table: " + name);
+        } 
+        lseek(fd, service_info.current_record, SEEK_SET);
     }
     string GetName()
     {
@@ -292,6 +309,10 @@ private:
     ~MyTable()
     {
         close(fd);
+        for (int i = 0; i < window.size(); i++)
+        {
+            delete window[i];
+        }
         cols.clear();
         window.clear();
     }
@@ -367,7 +388,6 @@ public:
             {
                 throw TableException("Can't read columns names from table " + Name);
             }
-            cout << tmp.name << endl;
             list.push_back(tmp);
         }
         info.current_record = lseek(fd, 0L, SEEK_CUR);
@@ -380,22 +400,46 @@ public:
         WriteRecord();
         if (service_info.current_record == service_info.last_record)
         {
-            service_info.current_record= service_info.last_record = lseek(fd, 0L, SEEK_CUR);   
+            service_info.last_record = lseek(fd, service_info.record_size, SEEK_CUR);  
+            ModifyServiceInfo();
+        }
+    }
+    virtual void Delete ()
+    {
+        if (service_info.current_record == service_info.last_record)
+        {
+            cout << "first case" << endl;
+        }
+        else if ((service_info.current_record + service_info.record_size) == service_info.last_record)
+        {
+            cout << "sec case" << endl;
+            ftruncate(fd, service_info.current_record);
+            service_info.last_record = service_info.current_record;
+            ModifyServiceInfo(); 
         }
         else
         {
-            service_info.current_record = lseek(fd, 0L, SEEK_CUR); 
+            long current_offset_buf = service_info.current_record;
+            for (; !IsEnd(); ReadNext())
+            {
+                ReadNext();
+                GetField(cols[0].name);
+                ReadPrevious();
+                WriteRecord();
+            }   
+            ReadPrevious();
+            service_info.last_record = service_info.current_record;
+            ftruncate(fd, service_info.last_record);
+            service_info.current_record = current_offset_buf;
+            ModifyServiceInfo();
         }
-    }
-    virtual void Delete (){}
-    virtual void Drop ()
-    {
-        close(fd);
-        remove(name.c_str());
     }
     virtual IField * GetField ( const string& Name )
     {
-        ReadRecord();
+        if (record_read_flag == false) //&& service_info.current_record == service_info.last_record)
+        {
+            ReadRecord();
+        }
         for(int i = 0; i < cols.size(); i++)
         {
             if (cols[i].name == Name)
@@ -407,6 +451,7 @@ public:
     }
     virtual bool ReadFirst ()
     {
+        record_read_flag = false;
         lseek(fd, service_info.first_record, SEEK_SET);
         service_info.current_record = lseek(fd, 0L, SEEK_CUR);
         return true;
@@ -419,27 +464,29 @@ public:
         }
         lseek(fd, service_info.record_size, SEEK_CUR);
         service_info.current_record = lseek(fd, 0L, SEEK_CUR);
+        record_read_flag = false;
         return true;
     }
-    virtual void Update ()
+    virtual bool ReadPrevious ()
     {
-        for (int i = 0; i < cols.size(); i++)
+        if (service_info.current_record == service_info.first_record)
         {
-            if (cols[i].type ==  TEXT)
-            {
-                if (write(fd, window[i]->Text().data(), cols[i].size) < 0)
-                {
-                    throw TableException("Can't update a record " + cols[i].name + " in table: " + name);
-                }
-            }
-            else
-            {
-                if (write(fd, &(window[i]->Long()), sizeof(long)) < 0)
-                {
-                    throw TableException("Can't update a record " + cols[i].name + " in table: " + name); 
-                }
-            }
-        }   
+            throw TableException("Attempt to access a 0 record in table: " + name);
+        }
+        lseek(fd, - service_info.record_size, SEEK_CUR);
+        service_info.current_record = lseek(fd, 0L, SEEK_CUR);
+        record_read_flag = false;
+        return true;
+    }
+    virtual bool LastRecord ()
+    {
+        lseek(fd, service_info.last_record, SEEK_SET);
+        record_read_flag = false;
+        return true;
+    }
+    virtual bool IsEnd()
+    {
+        return service_info.current_record == service_info.last_record;
     }
 };
 

@@ -8,32 +8,76 @@ int main()
         ITableStruct * Struct = MyTable::CreateTableStruct ();
         Struct->SetName("new_table");
         Struct->AddText( "Name", 10 );
+        Struct->AddText( "Surname", 20 );
+        Struct->AddText( "City", 10 );
         Struct->AddLong( "Age" );
-
+        
         ITable * Table = MyTable::Create ( Struct );
-        IField * Field1 = Table->GetField("Name");
-        IField * Field2 = Table->GetField("Age");
+        
         Table->ReadFirst();
-        Field1->Text() = "123456";
-        Field2->Long() = 2536;
+        Table->GetField("Name")->Text() = "Semen";
+        Table->GetField("Surname")->Text() = "Elistratov";
+        Table->GetField("City")->Text() = "Samara";
+        Table->GetField("Age")->Long() = 10;
+        
         Table->Add();
         
-        delete Table;
+        Table->ReadNext();
+        Table->GetField("Name")->Text() = "Irina";
+        Table->GetField("Surname")->Text() = "Elistratova";
+        Table->GetField("City")->Text() = "Samara";
+        Table->GetField("Age")->Long() = 20;
+        Table->Add();
+        Table->ReadNext();
+        Table->GetField("Name")->Text() = "Yuri";
+        Table->GetField("Surname")->Text() = "Elistratov";
+        Table->GetField("City")->Text() = "Samara";
+        Table->GetField("Age")->Long() = 19;
+        Table->Add();
+        Table->ReadNext();
+        Table->GetField("Name")->Text() = "Philipp";
+        Table->GetField("Surname")->Text() = "Elistratov";
+        Table->GetField("City")->Text() = "Samara";
+        Table->GetField("Age")->Long() = 14;
+        Table->Add();
 
+
+        Table->ReadFirst();
+        Table->Delete();
         
-        ITable * Table2 = MyTable::Open ( "new_table" );
-        Table2->ReadFirst();
-        IField * Field3 = Table2->GetField("Name");
-        cout << Field3->Text() << endl;
+        Table->Delete();
+        //cout << Table->GetField("Name")->Text() << endl;
         
-        delete Table2;
         
-        cout << Field1->Text() << endl;
-        MyTable::Drop("new_table");
+        //Table->Delete();
+        delete Table;
+        delete Struct;
+        
     }
     catch(TableException & e)
     {
         e.PrintMessage();
+        
     }
+
+    try
+    {
+        ITable * Table =  MyTable::Open ( "new_table" );
+        for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext())
+        {
+            //cout << "fd";
+            cout << Table->GetField("Name")->Text() << " " << Table->GetField("Surname")->Text()<< " " 
+            << Table->GetField("City")->Text() << " " << Table->GetField("Age")->Long() << endl;
+        }
+        delete Table;
+        MyTable::Drop("new_table");
+        
+    }
+    catch(TableException & e)
+    {
+        e.PrintMessage();
+        
+    }
+    
     return 0;
 }
