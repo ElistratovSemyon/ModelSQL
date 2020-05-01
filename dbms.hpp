@@ -11,12 +11,9 @@ using namespace std;
 
 
 /*
-        TODO: 1. Исправить имена (переименовать name to table_name in notepad)
-
+    TODO:   1. Исправить имена (переименовать name to table_name in notepad)
+            2. Подумаьт что делать если длина имен не совпадает (добавлять пробелы в конец, реализовать) !!! кажется все работает!
 */
-
-
-
 
 enum Type { TEXT, LONG };
 class TableException {
@@ -35,8 +32,6 @@ public:
     }
     virtual ~ TableException () {}
 };
-
-
 
 class IField {
 public:
@@ -95,14 +90,13 @@ public:
     }
     virtual Type OfType ()
     {
-        enum Type f_type = LONG;//?
+        enum Type f_type = LONG;
         return f_type;
     }
     virtual long & Long ()
     {
         return value;
     }
-
 };
 
 
@@ -170,7 +164,6 @@ public:
     {
         return list;
     }
-
     virtual string & GetName()
     {
         return name;
@@ -202,9 +195,7 @@ struct TableInfo
     long first_record;
     long last_record;
     long current_record;
-    long current_field;
     long record_size;
-    
 };
 
 
@@ -249,9 +240,50 @@ private:
             }
         }
         lseek(fd, service_info.first_record, SEEK_SET);
-        if (service_info.first_record != service_info.last_record)
-        cout << service_info.last_record << " - info" << endl;
+    }
 
+    void ReadRecord()
+    {
+        for (int i = 0; i < cols.size(); i++)
+        {
+            if (cols[i].type == TEXT)
+            {
+                char buf[MAX_LENGTH] = {0};
+                if (read(fd, buf, cols[i].size) < 0)
+                {
+                    throw TableException("Can't read a record from table " + name);   
+                }
+                window[i]->Text() = buf;
+            }
+            else
+            {
+                if (read(fd, &(window[i]->Long()), sizeof(long)) < 0)
+                {
+                    throw TableException("Can't read a record from table " + name);   
+                }
+            }
+        }
+    }
+    void WriteRecord()
+    {
+        for(int i = 0; i < window.size(); i++)
+        {
+            
+            if (window[i]->OfType() == TEXT)
+            {   
+                if (write(fd, window[i]->Text().data(), cols[i].size) < 0)
+                {
+                    throw TableException("Can't add a record to table " + name);
+                }               
+            }
+            else
+            {
+                if (write(fd, &(window[i]->Long()), sizeof(long)) < 0)
+                {
+                    throw TableException("Can't add a record to table " + name);
+                }
+            }
+        }
     }
     string GetName()
     {
@@ -272,31 +304,27 @@ public:
 
     static ITable * Create ( ITableStruct * TableStruct )
     {
-    
         int fd;
         fd = open(TableStruct->GetName().c_str(), O_CREAT | O_RDWR , 0666);
         if (fd == -1)
         {
             perror(0);
-            exit(1);
+            throw TableException("Can't create file.");
         }
-        
         struct TableInfo tmp = {0};
-
         tmp.amount_cols = TableStruct->GetVector().size();
         long record_size = 0;
         if (write(fd, &tmp, sizeof(tmp)) < 0)
         {
-            throw TableException("Can't add service info to table: " + name);
+            throw TableException("Can't add service info to table: " + TableStruct->GetName());
         }
         for (auto i: TableStruct->GetVector())
         {
             if (write(fd, &i, sizeof(i)) < 0)
             {
-                throw TableException("Can't add columns names to table: " + name);
+                throw TableException("Can't add columns names to table: " + TableStruct->GetName());
             }
             record_size += i.size;
-
         }
         tmp.first_record = lseek(fd, 0L, SEEK_CUR);
         tmp.last_record = lseek(fd, 0L, SEEK_CUR);
@@ -305,9 +333,9 @@ public:
         lseek(fd, 0L, SEEK_SET);
         if (write(fd, &tmp, sizeof(tmp)) < 0)
         {
-            throw TableException("Can't add service info to table: " + name);
+            throw TableException("Can't add service info to table: " + TableStruct->GetName());
         }
-
+        lseek(fd, tmp.first_record, SEEK_SET);
         ITable * new_table = new MyTable(fd, TableStruct->GetVector(), TableStruct->GetName(), tmp);
         return new_table;
     }
@@ -327,46 +355,37 @@ public:
             perror(0);
             throw TableException("Can't open file.");
         }
-        
         struct TableInfo info;
         if (read(fd, &info, sizeof(info)) < 0)
         {
             throw TableException("Can't read service info from table " + Name);
         }
-        list.reserve(info.amount_cols);
-        for(int i = 0; i < list.size(); i++)
+        for(int i = 0; i < info.amount_cols; i++)
         {
             struct Columns tmp;
             if (read(fd, &tmp, sizeof(tmp)) < 0)
             {
                 throw TableException("Can't read columns names from table " + Name);
             }
+            cout << tmp.name << endl;
             list.push_back(tmp);
         }
-
-
-    
-        
-        
+        info.current_record = lseek(fd, 0L, SEEK_CUR);
         ITable * new_table = new MyTable(fd, list, Name, info);
-        cout << "open call constructor\n";
-        return new_table;   
-        
+        return new_table;           
     }
 
     virtual void Add ()
     {
-        for(int i = 0; i < window.size(); i++)
+        WriteRecord();
+        if (service_info.current_record == service_info.last_record)
         {
-            if (window[i]->OfType() == TEXT)
-            {   
-                if (write(fd, window[i]->Text().data(), cols[i].size) < 0)
-                {
-                    throw TableException("Can't add a record to table " + name);
-                }
-            }
+            service_info.current_record= service_info.last_record = lseek(fd, 0L, SEEK_CUR);   
         }
-        service_info.last_record = service_info.current_record;
+        else
+        {
+            service_info.current_record = lseek(fd, 0L, SEEK_CUR); 
+        }
     }
     virtual void Delete (){}
     virtual void Drop ()
@@ -376,6 +395,7 @@ public:
     }
     virtual IField * GetField ( const string& Name )
     {
+        ReadRecord();
         for(int i = 0; i < cols.size(); i++)
         {
             if (cols[i].name == Name)
@@ -384,7 +404,6 @@ public:
             }
         }
         throw TableException("Attempt to access a nonexistent column with name: " + Name + " in table: " + name);
-
     }
     virtual bool ReadFirst ()
     {
@@ -404,7 +423,7 @@ public:
     }
     virtual void Update ()
     {
-         for (int i = 0; i < cols.size(); i++)
+        for (int i = 0; i < cols.size(); i++)
         {
             if (cols[i].type ==  TEXT)
             {

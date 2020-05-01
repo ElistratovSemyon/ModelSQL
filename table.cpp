@@ -13,19 +13,17 @@ int main()
         ITable * Table = MyTable::Create ( Struct );
         IField * Field1 = Table->GetField("Name");
         IField * Field2 = Table->GetField("Age");
-        Field1->Text() = "1234567890";
-        Field2->Long() = 14;
+        Table->ReadFirst();
+        Field1->Text() = "123456";
+        Field2->Long() = 2536;
         Table->Add();
         
         delete Table;
 
         
         ITable * Table2 = MyTable::Open ( "new_table" );
-        
+        Table2->ReadFirst();
         IField * Field3 = Table2->GetField("Name");
-        if (Field3 == 0){
-            cout << "pp";
-        }
         cout << Field3->Text() << endl;
         
         delete Table2;
