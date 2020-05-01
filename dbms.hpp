@@ -241,6 +241,7 @@ private:
             }
         }
         lseek(fd, service_info.first_record, SEEK_SET);
+        if (service_info.first_record != service_info.last_record)
         cout << service_info.last_record << " - info" << endl;
 
     }
