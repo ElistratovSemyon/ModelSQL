@@ -10,22 +10,30 @@
 using namespace std;
 
 
+/*
+        TODO: 1. Исправить имена (переименовать name to table_name in notepad)
+
+*/
+
+
+
+
 enum Type { TEXT, LONG };
-class Xception {
+class TableException {
 public:
     string Message;
     virtual void PrintMessage ()
     {
         cerr << Message << endl;
     }
-    Xception () {}
-    Xception ( const string& aMessage ) {
+    TableException () {}
+    TableException ( const string& aMessage ) {
         Message = aMessage; 
     }
-    Xception ( const Xception& xception ) { 
-        Message = xception.Message; 
+    TableException ( const TableException& exception ) { 
+        Message = exception.Message; 
     }
-    virtual ~ Xception () {}
+    virtual ~ TableException () {}
 };
 
 
@@ -41,7 +49,7 @@ public:
 class ITextField: public IField {
 public:
     virtual long & Long () { 
-        throw Xception (); 
+        throw TableException("Try to read long from text field."); 
     }
 };
 
@@ -74,7 +82,7 @@ public:
 class ILongField: public IField {
 public:
     virtual string & Text () { 
-        throw Xception (); 
+        throw TableException("Try to read text from long field."); 
     }
 };
 
@@ -195,6 +203,7 @@ struct TableInfo
     long last_record;
     long current_record;
     long current_field;
+    long record_size;
     
 };
 
@@ -206,7 +215,6 @@ class MyTable:public ITable {
     string name;
     vector<struct Columns> cols;
     int fd;
-    long line_size;
     int amount_cols;
     struct TableInfo service_info;
     vector<IField *> window;
@@ -276,22 +284,30 @@ public:
         struct TableInfo tmp = {0};
 
         tmp.amount_cols = TableStruct->GetVector().size();
-        
-        write(fd, &tmp, sizeof(tmp));
+        long record_size = 0;
+        if (write(fd, &tmp, sizeof(tmp)) < 0)
+        {
+            throw TableException("Can't add service info to table: " + name);
+        }
         for (auto i: TableStruct->GetVector())
         {
-            write(fd, &i, sizeof(i));
+            if (write(fd, &i, sizeof(i)) < 0)
+            {
+                throw TableException("Can't add columns names to table: " + name);
+            }
+            record_size += i.size;
+
         }
         tmp.first_record = lseek(fd, 0L, SEEK_CUR);
         tmp.last_record = lseek(fd, 0L, SEEK_CUR);
         tmp.current_record = lseek(fd, 0L, SEEK_CUR);
+        tmp.record_size = record_size;
         lseek(fd, 0L, SEEK_SET);
-        write(fd, &tmp, sizeof(tmp));
-        
-        
-        
-        
-        
+        if (write(fd, &tmp, sizeof(tmp)) < 0)
+        {
+            throw TableException("Can't add service info to table: " + name);
+        }
+
         ITable * new_table = new MyTable(fd, TableStruct->GetVector(), TableStruct->GetName(), tmp);
         return new_table;
     }
@@ -309,16 +325,22 @@ public:
         if (fd == -1)
         {
             perror(0);
-            throw 1;
+            throw TableException("Can't open file.");
         }
         
         struct TableInfo info;
-        read(fd, &info, sizeof(info));
+        if (read(fd, &info, sizeof(info)) < 0)
+        {
+            throw TableException("Can't read service info from table " + Name);
+        }
         list.reserve(info.amount_cols);
         for(int i = 0; i < list.size(); i++)
         {
             struct Columns tmp;
-            read(fd, &tmp, sizeof(tmp));
+            if (read(fd, &tmp, sizeof(tmp)) < 0)
+            {
+                throw TableException("Can't read columns names from table " + Name);
+            }
             list.push_back(tmp);
         }
 
@@ -338,7 +360,10 @@ public:
         {
             if (window[i]->OfType() == TEXT)
             {   
-                write(fd, window[i]->Text().data(), cols[i].size);
+                if (write(fd, window[i]->Text().data(), cols[i].size) < 0)
+                {
+                    throw TableException("Can't add a record to table " + name);
+                }
             }
         }
         service_info.last_record = service_info.current_record;
@@ -358,39 +383,22 @@ public:
                 return window[i];
             }
         }
-        return 0;
+        throw TableException("Attempt to access a nonexistent column with name: " + Name + " in table: " + name);
 
     }
     virtual bool ReadFirst ()
     {
         lseek(fd, service_info.first_record, SEEK_SET);
-        for (int i = 0; i < cols.size(); i++)
-        {
-            if (cols[i].type == TEXT)
-            {
-                read(fd, window[i]->Text().data(), cols[i].size);
-            }
-            else
-            {
-                read(fd, &(window[i]->Long()), sizeof(long));
-            }
-        }
         service_info.current_record = lseek(fd, 0L, SEEK_CUR);
         return true;
     }
     virtual bool ReadNext ()
     {
-        for (int i = 0; i < cols.size(); i++)
+        if (service_info.current_record == service_info.last_record)
         {
-            if (cols[i].type == TEXT)
-            {
-                read(fd, window[i]->Text().data(), cols[i].size);
-            }
-            else
-            {
-                read(fd, &(window[i]->Long()), sizeof(long));
-            }
+            throw TableException("Attempt to access a nonexistent record in table: " + name);
         }
+        lseek(fd, service_info.record_size, SEEK_CUR);
         service_info.current_record = lseek(fd, 0L, SEEK_CUR);
         return true;
     }
@@ -400,11 +408,17 @@ public:
         {
             if (cols[i].type ==  TEXT)
             {
-                write(fd, window[i]->Text().data(), cols[i].size);
+                if (write(fd, window[i]->Text().data(), cols[i].size) < 0)
+                {
+                    throw TableException("Can't update a record " + cols[i].name + " in table: " + name);
+                }
             }
             else
             {
-                write(fd, &(window[i]->Long()), sizeof(long));
+                if (write(fd, &(window[i]->Long()), sizeof(long)) < 0)
+                {
+                    throw TableException("Can't update a record " + cols[i].name + " in table: " + name); 
+                }
             }
         }   
     }
