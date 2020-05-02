@@ -179,17 +179,18 @@ namespace ModelSQL {
         }
         int Read (void * buf, int len)
         {
-            if (recv(m_Socket, buf, len, 0) < 0)
+            int res;
+            if ((res = recv(m_Socket, buf, len, 0)) < 0)
             {
                 perror(0);
                 throw SocketException(SocketException::ESE_SOCKSEND);
             }
-            return len; // ???????
+            return res; // ???????
         }
         int GetChar()
         {
             int c = 0;
-            if (recv(m_Socket, &c, sizeof(c), 0) < 0)
+            if (recv(m_Socket, &c, sizeof(char), 0) < 0)
             {
                 perror(0);
                 throw SocketException(SocketException::ESE_SOCKSEND);
@@ -265,7 +266,8 @@ namespace ModelSQL {
     protected:
         void Bind()
         {
-            if ( bind(  m_Socket, (struct sockaddr *) *m_pAddr, m_pAddr->GetLength()) < 0 ){
+            int a = ::bind(  m_Socket, (struct sockaddr *) *m_pAddr, m_pAddr->GetLength());
+            if ( a < 0 ){
                 perror(0);
                 throw SocketException(SocketException::ESE_SOCKBIND);
             }       
@@ -302,7 +304,7 @@ namespace ModelSQL {
     // AF_INET
     class InServerSocket: public ServerSocket {
     public:
-        InServerSocket(short PortNum) throw (SocketException)
+        InServerSocket(short PortNum)
         {
             char HostName[64];
             gethostname (HostName, sizeof (HostName));

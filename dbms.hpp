@@ -1,5 +1,5 @@
-#if !defined _DBMS_H_
-#define _DBMS_H_
+#ifndef _DBMS_HPP_
+#define _DBMS_HPP_
 #include <vector>
 #include <string>
 #include <map>
@@ -46,7 +46,7 @@ public:
 class ITextField: public IField {
 public:
     virtual long & Long () { 
-        throw TableException("Try to read long from text field."); 
+        throw TableException("Try to read/write long from text field."); 
     }
 };
 
@@ -79,7 +79,7 @@ public:
 class ILongField: public IField {
 public:
     virtual string & Text () { 
-        throw TableException("Try to read text from long field."); 
+        throw TableException("Try to read/write text from long field."); 
     }
 };
 
@@ -185,12 +185,12 @@ public:
     virtual void Add () = 0;
     virtual void Delete () = 0;
     virtual IField * GetField ( const string& Name ) = 0;
+    virtual IField * GetField ( int number ) = 0;
     virtual bool ReadFirst () = 0;
     virtual bool ReadNext () = 0;
     virtual bool ReadPrevious () = 0;
     virtual bool LastRecord () = 0;
     virtual bool IsEnd() = 0;
-
     virtual ~ ITable () {};
 };
 
@@ -326,11 +326,22 @@ public:
     static ITable * Create ( ITableStruct * TableStruct )
     {
         int fd;
-        fd = open(TableStruct->GetName().c_str(), O_CREAT | O_RDWR , 0666);
+        fd = open(TableStruct->GetName().c_str(), O_CREAT | O_RDWR | O_EXCL, 0666);
         if (fd == -1)
         {
-            perror(0);
-            throw TableException("Can't create file.");
+            switch (errno)
+            {
+                case EEXIST:
+                    throw TableException("File already exist.");
+                    break;
+                case EACCES:
+                    throw TableException("Permission denied.");
+                    break;
+                default:
+                    throw TableException("Can't create file.");
+                    break;
+            }
+            
         }
         struct TableInfo tmp = {0};
         tmp.amount_cols = TableStruct->GetVector().size();
@@ -408,11 +419,10 @@ public:
     {
         if (service_info.current_record == service_info.last_record)
         {
-            cout << "first case" << endl;
+            
         }
         else if ((service_info.current_record + service_info.record_size) == service_info.last_record)
         {
-            cout << "sec case" << endl;
             ftruncate(fd, service_info.current_record);
             service_info.last_record = service_info.current_record;
             ModifyServiceInfo(); 
@@ -449,6 +459,18 @@ public:
         }
         throw TableException("Attempt to access a nonexistent column with name: " + Name + " in table: " + name);
     }
+    virtual IField * GetField ( int number )
+    {
+        if (record_read_flag == false) //&& service_info.current_record == service_info.last_record)
+        {
+            ReadRecord();
+        }
+        if (number > window.size())
+        {
+            throw TableException("Attempt to access a nonexistent column in table: " + name);
+        }
+        return window[number];
+    }
     virtual bool ReadFirst ()
     {
         record_read_flag = false;
@@ -481,6 +503,7 @@ public:
     virtual bool LastRecord ()
     {
         lseek(fd, service_info.last_record, SEEK_SET);
+        service_info.current_record = service_info.last_record;
         record_read_flag = false;
         return true;
     }

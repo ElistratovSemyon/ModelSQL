@@ -10,134 +10,160 @@
 #include "dbms.hpp"
 using namespace std;
 
-enum lex_type_t { STR, COMMA, ALL, OPEN, CLOSE,  END };
-enum state_t {H, COM, O, C, S, A, OK};
+enum lex_type_t { IDN, STR, NUMBER, COMMA, ALL, OPEN, CLOSE,  END };
+enum state_t {H, COM, O, C, I, S, N,  A, OK};
 
-namespace lexer {
+namespace lexer
+{
     enum lex_type_t cur_lex_type;
     std::string cur_lex_text;
-    BaseSocket * sock;
+    string sentence;
     int c;
+    int iter;
     
-    void init(BaseSocket * pConn)
+    void init(string & Sentence)
     {
-        sock = pConn;
-        c = sock->GetChar();
+        sentence = Sentence;
+        iter = 0;
+        c = sentence[iter];
+        
     }
 
     void next()
     {
         
+        
         cur_lex_text.clear();
         state_t state = H;
-        while (state != OK) {
-            switch (state) {
-            case H:
-                if (std::isspace(c)) {
-                    // stay in H
-                } else if (c == ','){
-                    state = COM; 
-                    cur_lex_text += c;
-                } else if (c == '*') {
-                    state = A;
-                    cur_lex_text += c;
-                } else if (c == '(') {
-                    state = O;
-                    cur_lex_text += c;
-                } else if (c == ')') {
-                    state = C;
-                    cur_lex_text += c;
-                } else if (c == '\n' || c == EOF) {
-                    cur_lex_type = END;
-                    state = OK;
-                } else if (c != "'")
-                    state = S;
-                    cur_lex_text += c;
-                } 
-                else
-                {
-                    throw "BAD";    
-                }
-                
-                break;
+        while (state != OK) 
+        {
             
-            case S:
-                if ( ! std::isspace(c)) {
-                    cur_lex_text += c;
-                } else {
-                    cur_lex_type = STR;
-                    state = OK;
-                }
-                break;
+            switch (state) 
+            {
+                case H:
 
-            case COM:
-                if (std::isspace(c))
-                {
-                    cur_lex_type = COMMA;
-                    state = OK;
-                }
-                else
-                {
-                    state = STR;
-                    cur_lex_text += c;
-                }
-                break;
-            case A:
-                if (std::isspace(c))
-                {
-                    cur_lex_type = ALL;
-                    state = OK; 
-                }
-                else
-                {
-                    state = STR;
-                    cur_lex_text += c;
-                }
-
-                break;
-
-            case O:
-                if (std::isspace(c))
-                {
-                    cur_lex_type = OPEN;
-                    state = OK;
-                }
-                else
-                {
-                    state = STR;
-                    cur_lex_text += c;
-                }
-                break;
-
-            case C:
-                if (std::isspace(c))
-                {
-                    cur_lex_type = CLOSE;
-                    state = OK;
-                }
-                else
-                {
-                    state = STR;
-                    cur_lex_text += c;
-                }
-                break;
-
-            case OK:
-                break;
-            }
-                if (state != OK)
-                {
-                    if (c == '\n') {
+                    if (std::isspace(c)) {
+                        // stay in H
+                    } 
+                    else if (c == ','){
+                        state = COM; 
+                        cur_lex_text += c;
+                    } 
+                    else if (c == '*') {
+                        state = A;
+                        cur_lex_text += c;
+                    } 
+                    else if (c == '(') {
+                        state = O;
+                        cur_lex_text += c;
+                    } 
+                    else if (c == ')') {
+                        state = C;
+                        cur_lex_text += c;
+                    } 
+                    else if (c == '\'') {
+                        state = S;
+                        cur_lex_text += c;
+                    } 
+                    else if (std::isdigit(c))
+                    {
+                        
+                        state = N;
+                        cur_lex_text += c;
+                    } else if ( ((c >= 'a') && (c <= 'z') )|| ( (c >= 'A') && (c <= 'Z') ))
+                    {
+                        state = I;
+                        cur_lex_text += c;
+                    } else if (c == '\n' || c == EOF || c == 0) {
                         cur_lex_type = END;
                         state = OK;
-                    } else {
-                        c = sock->GetChar();
-                    }   
+                    }  
+                    else
+                    {
+                        throw ("Invalid lexem");   
+                    }
                     
-                }
+                    break;
                 
+                case I:
+                    if ( ((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) || (c == '_') || (isdigit(c))) {
+                        cur_lex_text += c;
+                    } else {
+                        cur_lex_type = IDN;
+                        state = OK;
+                    }
+                    break;
+                case S:
+                    if ( c != '\'') {
+                        cur_lex_text += c;
+                    } else {
+                        cur_lex_text += c;
+                        cur_lex_type = STR;
+                        state = OK;
+                    }
+                    break;
+                case N:
+                    if (std::isdigit(c)) {
+                        cur_lex_text += c;
+                    } else {
+                        cur_lex_type = NUMBER;
+                        state = OK;
+                    }
+                    break;
+
+                case COM:
+                    
+                    cur_lex_type = COMMA;
+                    cur_lex_text = ",";
+                    state = OK;
+                    
+                    break;
+                case A:
+                    cur_lex_type = ALL;
+                    cur_lex_text = "*";
+                    state = OK;
+                    break;
+
+                case O:
+                    cur_lex_type = OPEN;
+                    cur_lex_text = "(";
+                    state = OK;
+                    break;
+
+                case C:
+                    cur_lex_type = CLOSE;
+                    cur_lex_text = ")";
+                    state = OK;
+                    break;
+
+                case OK:
+                    break;
+            }
+            
+            if (state != OK)
+            {
+                if (c == '\n') {
+                    cur_lex_type = END;
+                    state = OK;
+                } else {
+                    iter++;
+                    if (iter < sentence.size())
+                    {
+                        c = sentence[iter];
+                    }
+                    else
+                    {
+                        cur_lex_type = END;
+                        state = OK;
+                    }
+                    
+                }   
+                
+            }
         }
+        cout << cur_lex_text << endl;        
     }
+    
 }
 
 namespace parser
@@ -160,80 +186,140 @@ namespace parser
     *******/
     // i dont't use arity, it is easier without it
     // poliz owns its items objects
-    void init(BaseSocket * pConn)
+    class SentenceException
     {
-        lexer::init(pConn);
-        lexer::next();
+    public:
+        string Message;
+        virtual void PrintMessage ()
+        {
+            cerr << Message << endl;
+        }
+        SentenceException () {}
+        SentenceException ( const string& aMessage ) {
+            Message = aMessage; 
+        }
+        SentenceException ( const SentenceException& exception ) { 
+            Message = exception.Message; 
+        }
+        virtual ~ SentenceException () {}
+    };
+    
+    bool end_flag;
+    void init(string & Sentence)
+    {
+        
         end_flag = false;
+        lexer::init(Sentence);
+        lexer::next();
+        
     }
-    //stack <string> st;
-    bool end_flag = false;
-    bool IsIdentificator(string & str);
-    bool IsLong(string & str);
 
-    bool IsIdentificator(string & str)
-    {
-        char c = str[0];
-        if (!( ((c >= 'a') && (c <= 'z') ) || ( (c >= 'A') && (c <= 'Z') )))
-        {
-            return false;
-        }
-        for (int i = 1; i < str.size(); i++)
-        {
-            c = str[i];
-            if (!( ((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) || (c == '_') || (isdigit(c))))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
+    
+
+    
+    void InsertSen();
+    void DropSen();
+    void CreateSen();
+    void ExitSen();
    
     void Start()
     {
         
-        lexer::next();
-        if (lexer::cur_lex_type != STR)
+        if (lexer::cur_lex_type != IDN)
         {
-            throw "No command";
+            throw SentenceException("No such command " + lexer::cur_lex_text);
         }
-        switch (lexer::cur_lex_text)
+        char c = lexer::cur_lex_text[0];
+        
+        switch (c)
         {
-            case "SELECT":
-                SelectSen();
+            case 'S':
+                if (lexer::cur_lex_text == "SELECT")
+                {
+                    //SelectSen();
+                }
+                else
+                {
+                    throw SentenceException("Wrong command");
+                }
                 break;
-            case "INSERT":
-                InsertSen();
+            case 'I':
+                if (lexer::cur_lex_text == "INSERT")
+                {
+                    InsertSen();
+                }
+                else
+                {
+                    throw SentenceException("Wrong command");
+                }
                 break;
-            case "UPDATE":
-                UpdateSen();
+            case 'U':
+                if (lexer::cur_lex_text == "UPDATE")
+                {
+                    //UpdateSen();
+                }
+                else
+                {
+                    throw SentenceException("Wrong command");
+                }
                 break;
-            case "DELETE":
-                DeleteSen();
+            case 'D':
+                if (lexer::cur_lex_text == "DROP")
+                {
+                    DropSen();
+                }
+                else if (lexer::cur_lex_text == "DELETE")
+                {
+                    //DeleteSen();
+                }
+                else
+                {
+                    throw SentenceException("Wrong command");
+                }
                 break;
-            case "CREATE":
-                CreateSen();
+
+            case 'C':
+                if (lexer::cur_lex_text == "CREATE")
+                {
+                    CreateSen();
+                }
+                else
+                {
+                    throw SentenceException("Wrong command");
+                }
                 break;
-            case "DROP":
-                DropSen();
-                break;
-            case "EXIT":
-                end_flag = true;
-                
+
+            case 'E':
+                if (lexer::cur_lex_text == "EXIT")
+                {
+                    ExitSen();
+                }
+                else
+                {
+                    throw SentenceException("Wrong command");
+                }
                 break;
             default:
-                throw "No such command";
-                break;        
-                                
+                throw SentenceException("Wrong command");
+                break;                               
         }
-        
     }
+    void ExitSen()
+    {
+        end_flag = true;
+        lexer::next();
+        if (lexer::cur_lex_type != END)
+        {
+            throw SentenceException("Incorrectly constructed EXIT clause");
+        }
+    }
+    
     void SelectSen()
     {
         lexer::next();
         if (lexer::cur_lex_type == ALL)
         {
-            throw "No command";
+            throw SentenceException("Incorrectly constructed SELECT clause");
         }
 
     }
@@ -242,18 +328,14 @@ namespace parser
     void InsertSen()
     {
         lexer::next();
-        if (lexer::cur_lex_type != STR || lexer::cur_lex_text != "INTO")
+        if (lexer::cur_lex_type != IDN || lexer::cur_lex_text != "INTO")
         {
-            throw "No command";
+            throw SentenceException("Incorrectly constructed INSERT clause");
         }
         lexer::next();
-        if (lexer::cur_lex_type != STR)
+        if (lexer::cur_lex_type != IDN)
         {
-            throw "No command";
-        }
-        if (!IsIdentificator(lexer::cur_lex_text))
-        {
-            throw "Bad name";
+            throw SentenceException("Incorrectly constructed INSERT clause");
         }
         std::string name = lexer::cur_lex_text;
         ITable * Table = MyTable::Open(name);
@@ -261,40 +343,45 @@ namespace parser
         lexer::next();
         if (lexer::cur_lex_type != OPEN)
         {
-            throw "BAD"
+            throw SentenceException("Incorrectly constructed INSERT clause");
         }
         lexer::next();
         if (lexer::cur_lex_type == CLOSE)
         {
-            throw "BAD"
+            throw SentenceException("Incorrectly constructed INSERT clause");
         }
         int i = 0;
         while(lexer::cur_lex_type != CLOSE)
         {
-            if (lexer::cur_lex_type != STR)
-            {
-                throw "No command";
-            }
+            
             IField * Field = Table->GetField(i);
             if (Field->OfType() == TEXT)
             {
+                if (lexer::cur_lex_type != STR)
+                {
+                    throw SentenceException("Incorrectly constructed INSERT clause");
+                }
                 Field->Text() = lexer::cur_lex_text;
             }
             else
             {
+                if (lexer::cur_lex_type != NUMBER)
+                {
+                    throw SentenceException("Incorrectly constructed INSERT clause");
+                }
                 Field->Long() = stol(lexer::cur_lex_text);
             }
             lexer::next();
             if (lexer::cur_lex_type != CLOSE && lexer::cur_lex_type != COMMA)
             {
-                throw "BAD";
+                throw SentenceException("Incorrectly constructed INSERT clause");
             }
             
         }
         lexer::next();
-        if (cur_lex_type != END)
+        if (lexer::cur_lex_type != END)
         {
-            throw "trouble";
+            throw SentenceException("Incorrectly constructed INSERT clause");
         }
         Table->Add();
         delete Table;
@@ -303,134 +390,135 @@ namespace parser
     void DeleteSen()
     {
         lexer::next();
-        if (lexer::cur_lex_type != STR || lexer::cur_lex_text != "FROM")
+        if (lexer::cur_lex_type != IDN || lexer::cur_lex_text != "FROM")
         {
-            throw "No command";
+            throw SentenceException("Incorrectly constructed DELETE clause");
         }
         lexer::next();
-        if (lexer::cur_lex_type != STR)
+        if (lexer::cur_lex_type != IDN)
         {
             throw "No command";
         }
-        if (!IsIdentificator(lexer::cur_lex_text))
-        {
-            throw "Bad name";
-        }
         ITable * Table = MyTable::Open(lexer::cur_lex_text);
-        Where();
+        //Where();
 
     }
     
     void CreateSen()
     {
         lexer::next();
-        if (lexer::cur_lex_type != STR || lexer::cur_lex_text != "TABLE")
+        if (lexer::cur_lex_type != IDN || lexer::cur_lex_text != "TABLE")
         {
-            throw "No command";
+            throw SentenceException("Incorrectly constructed CREATE clause");
         }
         lexer::next();
-        if (lexer::cur_lex_type != STR)
+        if (lexer::cur_lex_type != IDN)
         {
-            throw "No command";
-        }
-        if (!IsIdentificator(lexer::cur_lex_text))
-        {
-            throw "Bad name";
+            throw SentenceException("Incorrectly constructed CREATE clause");
         }
         ITableStruct * Struct = MyTable::CreateTableStruct ();
-        Struct->SetName(lexer::cur_lex_text)
+        Struct->SetName(lexer::cur_lex_text);
         lexer::next();
         if (lexer::cur_lex_type != OPEN)
         {
-            throw "BAD"
+            throw SentenceException("Incorrectly constructed CREATE clause");
         }
         lexer::next();
         if (lexer::cur_lex_type == CLOSE)
         {
-            throw "BAD"
+            throw SentenceException("Incorrectly constructed CREATE clause");
         }
         while(lexer::cur_lex_type != CLOSE)
         {
             
-            if (lexer::cur_lex_type != STR)
+            if (lexer::cur_lex_type != IDN)
             {
-                throw "No command";
-            }
-            if (!IsIdentificator(lexer::cur_lex_text))
-            {
-                throw "Bad name";
+                throw SentenceException("Incorrectly constructed CREATE clause");
             }
             std::string column = lexer::cur_lex_text;
             lexer::next();
-            if (lexer::cur_lex_type != STR)
+            if (lexer::cur_lex_type != IDN)
             {
-                throw "No command";
+                throw SentenceException("Incorrectly constructed CREATE clause");
             }
-            if (lexer::cur_lex_text == TEXT)
+            if (lexer::cur_lex_text == "TEXT")
             {
+                
                 lexer::next();
                 if (lexer::cur_lex_type != OPEN)
                 {
-                    throw "BAD";
+                    throw SentenceException("Incorrectly constructed CREATE clause");
                 }
                 lexer::next();
-                if (lexer::cur_lex_type != STR)
+                if (lexer::cur_lex_type != NUMBER)
                 {
-                    throw "BAD";
+                    throw SentenceException("Incorrectly constructed CREATE clause");
                 }
                 long val = stol(lexer::cur_lex_text);
                 lexer::next();
                 if (lexer::cur_lex_type != CLOSE)
                 {
-                    throw "BAD";
+                    throw SentenceException("Incorrectly constructed CREATE clause");
                 }
                 Struct->AddText(column, val);
             }
-            else if (lexer::cur_lex_text == LONG)
+            else if (lexer::cur_lex_text == "LONG")
             {  
+                
                 Struct->AddLong(column); 
             }
             else
             {
-                throw "BAD";
+                throw SentenceException("Incorrectly constructed CREATE clause");
             }
+            
             lexer::next();
-            if (lexer::cur_lex_type != CLOSE && lexer::cur_lex_type != COMMA)
+            if (lexer::cur_lex_type == COMMA)
             {
-                throw "BAD";
+                lexer::next();
             }
+            else if (lexer::cur_lex_type == CLOSE)
+            {
+                
+                break;
+            } 
+            else
+            {
+                throw SentenceException("Incorrectly constructed CREATE clause");
+            }
+            
+
         }
         lexer::next();
-        if (cur_lex_type != END)
+        if (lexer::cur_lex_type != END)
         {
-            throw "trouble";
+            throw SentenceException("Incorrectly constructed CREATE clause");
         }
+        
         ITable * Table = MyTable::Create(Struct);
         delete Table;
+        
     }
     
     void DropSen()
     {
         lexer::next();
-        if (lexer::cur_lex_type != STR || lexer::cur_lex_text != "TABLE")
+        if (lexer::cur_lex_type != IDN || lexer::cur_lex_text != "TABLE")
         {
-            throw "No command";
+            throw SentenceException("Incorrectly constructed DROP clause");
         }
         lexer::next();
-        if (lexer::cur_lex_type != STR)
+        if (lexer::cur_lex_type != IDN)
         {
-            throw "No command";
+            throw SentenceException("Incorrectly constructed DROP clause");
         }
-        if (!IsIdentificator(lexer::cur_lex_text))
-        {
-            throw "Bad name";
-        }
+        string name = lexer::cur_lex_text;
         lexer::next();
-        if (cur_lex_type != END)
+        if (lexer::cur_lex_type != END)
         {
-            throw "trouble";
+            throw SentenceException("Incorrectly constructed DROP clause");
         }
-        MyTable::Drop(lexer::cur_lex_text);
+        MyTable::Drop(name);
     }
 
 }

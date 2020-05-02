@@ -2,10 +2,11 @@
 #include <cstdio>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <cstdio>
 #include "sock_wrap.hpp" //см. приложение
 using namespace std;
 using namespace ModelSQL;
-#define PORT_NUM 8006 // номер порта процесса-сервера
+#define PORT_NUM 8007 // номер порта процесса-сервера
 // В этом примере клиент и сервер выполняются на одном компьютере,
 // но программа легко обобщается на случай разных компьютеров. Для
 // этого можно, например, использовать сетевое имя не собственного
@@ -29,13 +30,29 @@ int main(int argc, char* argv[])
         // устанавливаем соединение
         sock.Connect();
         // отправляем серверу строку
-        
-        std::string str;
-        //sock.PutChar(a);
-        cout << sock.GetString() << endl;
-        std::getline(std::cin, str);
-        sock.PutString(str);
-        // печатаем на экран ответ от сервера
+        while(true)
+        {
+            std::string str;
+            //sock.PutChar(a);
+            str = sock.GetString();
+            if (str[0] == '#')
+            {
+                return 0;
+            }
+            else
+            {
+                cout << str;
+                
+            }
+            str.clear();
+            std::getline(std::cin, str);
+            sock.PutString(str);
+            str.clear();
+            
+            
+            // печатаем на экран ответ от сервера
+        }
+       
         
         
         
