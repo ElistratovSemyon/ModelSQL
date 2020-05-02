@@ -5,7 +5,7 @@
 #include "sock_wrap.hpp" //см. приложение
 using namespace std;
 using namespace ModelSQL;
-#define PORT_NUM 8004 // номер порта процесса-сервера
+#define PORT_NUM 8006 // номер порта процесса-сервера
 // В этом примере клиент и сервер выполняются на одном компьютере,
 // но программа легко обобщается на случай разных компьютеров. Для
 // этого можно, например, использовать сетевое имя не собственного
@@ -32,11 +32,13 @@ int main(int argc, char* argv[])
         
         std::string str;
         //sock.PutChar(a);
-        cin >> str;
+        cout << sock.GetString() << endl;
+        std::getline(std::cin, str);
         sock.PutString(str);
         // печатаем на экран ответ от сервера
         
-        cout << sock.GetString() << endl;
+        
+        
         //cout << "Read from server: " << sock.GetChar() << endl;
         // продолжаем диалог с сервером, пока в этом есть необходимость
         // ...

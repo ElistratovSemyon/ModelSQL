@@ -43,13 +43,8 @@ int main()
 
 
         Table->ReadFirst();
-        Table->Delete();
+    
         
-        Table->Delete();
-        //cout << Table->GetField("Name")->Text() << endl;
-        
-        
-        //Table->Delete();
         delete Table;
         delete Struct;
         

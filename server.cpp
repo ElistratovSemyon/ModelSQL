@@ -1,8 +1,10 @@
 #include <iostream>
 #include "sock_wrap.hpp" //см. приложение
+#include "dbms.hpp"
+#include "inter.hpp"
 using namespace std;
 using namespace ModelSQL;
-#define PORT_NUM 8004 // номер порта процесса-сервера
+#define PORT_NUM 8006 // номер порта процесса-сервера
 
 class MyServerSocket : public InServerSocket {
 public:
@@ -10,19 +12,24 @@ public:
 protected:
     void OnAccept (BaseSocket * pConn)
     {
-        // установлено соединение с клиентом, читаем сообщение
-        cout << "Read from client: " <<  pConn->GetString() << endl;
-        //cout << "Read from client: " << (char) pConn->GetChar() << endl;
-        
-        //for (int i = 0; i < 10; i++)
-        //    cout << (char *) pConn->GetChar();
-        // отправляем ответ
-        
-        pConn->PutString("OK");
-        
-        // продолжаем диалог с клиентом, пока в этом есть необходимость
-        // ...
-        
+        try
+        {
+           
+            pConn->PutString("Ready");
+            parser::init(pConn);
+            
+            while (parser::end_flag == false)
+            {
+                
+                
+                parser::Start();
+            }
+            
+        }
+        catch(const char * s)
+        {
+            std::cerr << s << '\n';
+        }
         delete pConn;
     }
 };
@@ -32,7 +39,7 @@ int main(int argc, char* argv[])
     try {
         // создаём серверный сокет
         MyServerSocket sock;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 1; i++)
         // слушаем запросы на соединение
             sock.Accept();
         } catch (Exception& e) {
