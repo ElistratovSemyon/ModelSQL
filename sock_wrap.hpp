@@ -142,6 +142,7 @@ namespace ModelSQL {
         virtual ~ BaseSocket()
         {
             close(m_Socket);
+            //shutdown(m_Socket, RDWR);
             delete m_pAddr;
         }
         void Write(void * buf, int len)

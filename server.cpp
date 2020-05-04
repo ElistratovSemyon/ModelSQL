@@ -4,7 +4,7 @@
 #include "inter.hpp"
 using namespace std;
 using namespace ModelSQL;
-#define PORT_NUM 8007 // номер порта процесса-сервера
+#define PORT_NUM 8008 // номер порта процесса-сервера
 
 class MyServerSocket : public InServerSocket {
 public:
@@ -21,19 +21,27 @@ protected:
                 {
                     
                     string sentence = pConn->GetString();
-                    if (sentence.size() < 10)
+                    if (sentence.size() < 4)
                     {
-                        throw "Bad";
+                        throw parser::SentenceException("Incorrectly clause");
                     }
                     parser::init(sentence);
                     parser::Start();
                     if (parser::end_flag == true)
                     {
                         pConn->PutString("#");
+                        sleep(1);
                         break;
                     }
                     //cout << "GET";
-                    pConn->PutString(">> ");
+                    if (parser::answer_flag == true)
+                    {
+                        pConn->PutString(parser::server_answer + ">> ");
+                    }
+                    else
+                    {
+                        pConn->PutString(">> ");
+                    }
                 }
                 
             }
@@ -51,6 +59,7 @@ protected:
                 pConn->PutString(str + "\n" + ">> ");
             }
         }
+        
         delete pConn;
     }
 };

@@ -191,6 +191,7 @@ public:
     virtual bool ReadPrevious () = 0;
     virtual bool LastRecord () = 0;
     virtual bool IsEnd() = 0;
+    virtual int AmountCols() = 0;
     virtual ~ ITable () {};
 };
 
@@ -280,7 +281,7 @@ private:
                 {
                     throw TableException("Can't add a record to table " + name);
                 }   
-                //cout << window[i]->Text() << endl;          
+                cout << "in write" <<window[i]->Text() << endl;          
             }
             else
             {
@@ -405,7 +406,10 @@ public:
         ITable * new_table = new MyTable(fd, list, Name, info);
         return new_table;           
     }
-
+    virtual int AmountCols()
+    {
+        return service_info.amount_cols;
+    }
     virtual void Add ()
     {
         WriteRecord();
@@ -441,6 +445,7 @@ public:
             service_info.last_record = service_info.current_record;
             ftruncate(fd, service_info.last_record);
             service_info.current_record = current_offset_buf;
+            lseek(fd, service_info.current_record, SEEK_SET);
             ModifyServiceInfo();
         }
     }
@@ -461,7 +466,7 @@ public:
     }
     virtual IField * GetField ( int number )
     {
-        if (record_read_flag == false) //&& service_info.current_record == service_info.last_record)
+        if (record_read_flag == false ) //&& service_info.current_record != service_info.last_record)
         {
             ReadRecord();
         }
