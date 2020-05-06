@@ -11,11 +11,13 @@
 using namespace std;
 
 enum lex_type_t {   IDN, STR, EQUAL, NUMBER, COMMA, ALL, OPEN, CLOSE,  END, ADD, SUB, DIV, MOD,
-                    CREATE, INSERT, DELETE, DROP, SELECT, UPDATE, WHERE, SET, 
-                    FROM, INTO, LIKE, IN, TABLE, TEXT_T, LONG_T, AND, OR , NOT, EXIT, WHERE_ALL
+                    CREATE, INSERT, DELETE, DROP, SELECT, UPDATE, WHERE, SET, LE, L, B, BE, NE, 
+                    FROM, INTO, LIKE, IN, TABLE, TEXT_T, LONG_T, AND, OR , NOT, EXIT, WHERE_ALL,
+                    BOOL
                 };
-enum state_t {H, COM, O, C, I, S, N, A, P, M, PER, D, E, OK};
-
+enum state_t {  _start, _comma, _open, _close, _idn, _str, _num, _all, _add, _sub, _mod, _and, 
+                _or, _not, _div, _equal, _l, _le, _b, _be,  _ne, OK
+            };
 namespace lexer
 {
     enum lex_type_t cur_lex_type;
@@ -38,65 +40,76 @@ namespace lexer
         
         
         cur_lex_text.clear();
-        state_t state = H;
+        state_t state = _start;
         while (state != OK) 
         {
             
             switch (state) 
             {
-                case H:
-
+                case _start:
+                    
                     if (std::isspace(c)) {
-                        // stay in H
+                        // stay in _start
                     } 
                     else if (c == ','){
-                        state = COM; 
+                        state = _comma; 
                         cur_lex_text += c;
                     } 
                     else if (c == '*') {
-                        state = A;
+                        state = _all;
                         cur_lex_text += c;
                     }
                     else if (c == '+') {
-                        state = P;
+                        state = _add;
                         cur_lex_text += c;
                     } 
                     else if (c == '-') {
-                        state = M;
+                        state = _sub;
                         cur_lex_text += c;
                     } 
                     else if (c == '/') {
-                        state = D;
+                        state = _div;
                         cur_lex_text += c;
                     } 
                     else if (c == '%') {
-                        state = PER;
+                        state = _mod;
                         cur_lex_text += c;
                     }  
                     else if (c == '(') {
-                        state = O;
+                        state = _open;
                         cur_lex_text += c;
                     } 
                     else if (c == ')') {
-                        state = C;
+                        state = _close;
                         cur_lex_text += c;
                     } 
                     else if (c == '\'') {
-                        state = S;
+                        state = _str;
                         cur_lex_text += c;
                     } 
                     else if (c == '=') {
-                        state = E;
+                        state = _equal;
+                        cur_lex_text += c;
+                    }
+                    else if (c == '<') {
+                        state = _l;
+                        cur_lex_text += c;
+                    }  
+                    else if (c == '>') {
+                        state = _b;
+                        cur_lex_text += c;
+                    } 
+                    else if (c == '!') {
+                        state = _ne;
                         cur_lex_text += c;
                     } 
                     else if (std::isdigit(c))
                     {
-                        
-                        state = N;
+                        state = _num;
                         cur_lex_text += c;
-                    } else if ( ((c >= 'a') && (c <= 'z') )|| ( (c >= 'A') && (c <= 'Z') ))
+                    } else if ( ((c >= 'a') && (c <= 'z') ) || ( (c >= 'A') && (c <= 'Z') ))
                     {
-                        state = I;
+                        state = _idn;
                         cur_lex_text += c;
                     } else if (c == '\n' || c == EOF || c == 0) {
                         cur_lex_type = END;
@@ -104,12 +117,12 @@ namespace lexer
                     }  
                     else
                     {
-                        throw ("Invalid lexem");   
+                        throw ("Invalid lexem 1");   
                     }
                     
                     break;
                 
-                case I:
+                case _idn:
                     if ( ((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) || (c == '_') || (isdigit(c))) {
                         cur_lex_text += c;
                     } else {
@@ -118,7 +131,7 @@ namespace lexer
                         state = OK;
                     }
                     break;
-                case S:
+                case _str:
                     if ( c != '\'') {
                         cur_lex_text += c;
                     } else {
@@ -132,7 +145,7 @@ namespace lexer
                         }
                     }
                     break;
-                case N:
+                case _num:
                     if (std::isdigit(c)) {
                         cur_lex_text += c;
                     } else {
@@ -141,37 +154,110 @@ namespace lexer
                     }
                     break;
 
-                case COM:
+                case _comma:
                     
                     cur_lex_type = COMMA;
                     cur_lex_text = ",";
                     state = OK;
                     
                     break;
-                case A:
+                case _all:
                     cur_lex_type = ALL;
                     cur_lex_text = "*";
                     state = OK;
                     break;
 
-                case O:
+                case _open:
                     cur_lex_type = OPEN;
                     cur_lex_text = "(";
                     state = OK;
                     break;
 
-                case C:
+                case _close:
                     cur_lex_type = CLOSE;
                     cur_lex_text = ")";
                     state = OK;
                     break;
-                case E:
+                case _equal:
                     cur_lex_type = EQUAL;
                     cur_lex_text = "=";
                     state = OK;
                     break;
                 
+                case _add:
+                    cur_lex_type = ADD;
+                    cur_lex_text = "+";
+                    state = OK;
+                    break;
+                case _sub:
+                    cur_lex_type = SUB;
+                    cur_lex_text = "-";
+                    state = OK;
+                    break;
+                case _div:
+                    cur_lex_type = DIV;
+                    cur_lex_text = "/";
+                    state = OK;
+                    break;
+                case _mod:
+                    cur_lex_type = MOD;
+                    cur_lex_text = "%";
+                    state = OK;
+                    break;
+                case _or:
+                    cur_lex_type = OR;
+                    cur_lex_text = "||";
+                    state = OK;
+                    break;
+                case _and:
+                    cur_lex_type = AND;
+                    cur_lex_text = "&&";
+                    state = OK;
+                    break;
+                case _not:
+                    cur_lex_type = NOT;
+                    cur_lex_text = "!";
+                    state = OK;
+                    break;
+                case _l:
+                    if (c == '=') {
+                        cur_lex_text += c;
+                        cur_lex_type = LE;
+                        state = OK;
+                    }
+                    else
+                    {
+                        cur_lex_type = L;
+                        state = OK;
+                    }
+                    break;
+                case _b:
+                    if (c == '=') {
+                        cur_lex_text += c;
+                        cur_lex_type = BE;
+                        state = OK;
+                    }
+                    else
+                    {
+                        cur_lex_type = B;
+                        state = OK;
+                    }
+                    break; 
+                case _ne:
+                    if (c == '=') {
+                        cur_lex_text += c;
+                        cur_lex_type = NE;
+                        state = OK;
+                    }
+                    else
+                    {
+                        throw ("Invalid lexem 2");
+                    }
+                    break;      
                 case OK:
+                    break;
+                default:
+                    throw ("Invalid lexem 3"); 
                     break;
             }
             
@@ -349,15 +435,25 @@ namespace parser
     void DeleteSen();
     void CreateSen();
     void ExitSen();
-    vector<string> & Expression(ITable * Table);
-    vector<string> & TextExpression(ITable * Table);
-    vector<string> & LongExpression(ITable * Table);
+    void Expression(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table);
+    void TextExpression(vector<string> & poliz, vector<lex_type_t> & type_poliz);
+    void LongExpression(vector<string> & poliz, vector<lex_type_t> & type_poliz);
+
+    vector<bool> LogicExpression(ITable * Table);
+
+
     
 
     void _factor(vector<string> & poliz, vector<lex_type_t> & type_poliz);
     void _multiplication(vector<string> & poliz, vector<lex_type_t> & type_poliz); 
-     void _addition(vector<string> & poliz, vector<lex_type_t> & type_poliz);
+    void _addition(vector<string> & poliz, vector<lex_type_t> & type_poliz);
 
+    void _logicfactor(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table);
+    void _logicmultiplication(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table); 
+    void _logicaddition(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table);
+
+    vector<string> ComputePoliz(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table);
+    bool CheckIn(string & str, vector <string> & list);
     int Where();
 
     
@@ -468,14 +564,16 @@ namespace parser
         {
             throw SentenceException("Incorrectly constructed SELECT clause");
         }
-
+        
         int alternative = Where();
+        
         if (alternative == 0)
         {
             throw SentenceException("Incorrectly constructed WHERE clause");
         }
         else if (alternative == 1)
         {
+            
             lexer::next();
             if (lexer::cur_lex_type != IDN)
             {
@@ -499,50 +597,246 @@ namespace parser
                 throw SentenceException("Incorrectly constructed WHERE clause");
             } 
             string sample = lexer::cur_lex_text;
+            lexer::next();
+            if (lexer::cur_lex_type != END)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
 
             /// regex check!!!
-        } else if (alternative == 2)
-        {
-            vector<string> mask = Expression(Table);
         }
-
-        for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext())
+        else if (alternative == 2)
         {
-            if (all_flag == false)
+            
+            lexer::next();
+            vector<string> poliz;
+            vector<lex_type_t> type_poliz;
+            vector<string> mask;
+            bool is_long = true;
+            bool not_flag = false;
+            Expression(poliz, type_poliz, Table);
+            if ((type_poliz.size() == 1) && ((type_poliz.back() == STR) || (Table->GetField(type_poliz.back())->OfType() == TEXT)))
             {
-                for (int j = 0; j < columns.size(); j++)
+                for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
                 {
-                    IField * Field = Table->GetField(columns[j]);
-                    if (Field->OfType() == TEXT)
-                    {
-                        server_answer += Field->Text() + "    ";
-                    }
-                    else
-                    {
-                        server_answer +=  to_string(Field->Long()) + "    ";
-                    }
+                    mask.push_back(Table->GetField(poliz.back())->Text());
+                    poliz.clear();
                 }
+                is_long = false;
             }
             else
+            {   
+                mask = ComputePoliz(poliz, type_poliz, Table);
+            }
+            lexer::next();
+            if (lexer::cur_lex_type == NOT)
             {
-                
-                for (int j = 0; j < Table->AmountCols(); j++)
+                not_flag = true;
+                lexer::next();
+            }
+            if (lexer::cur_lex_type != IN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+            lexer::next();
+            if (lexer::cur_lex_type != OPEN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+            lexer::next();
+            
+            if (lexer::cur_lex_type == CLOSE)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause close");
+            }
+            vector<string> const_list;
+            while (lexer::cur_lex_type != CLOSE)
+            {
+                if (is_long)
                 {
-                    
-                    IField * Field = Table->GetField(j);
-                    if (Field->OfType() == TEXT)
+                    if (lexer::cur_lex_type != NUMBER)
                     {
-                        server_answer += Field->Text() + "    ";
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                    const_list.push_back(to_string(stol(lexer::cur_lex_text)));
+                    lexer::next();
+                    if (lexer::cur_lex_type == COMMA)
+                    {
+                        lexer::next();
+                    }
+                    else if (lexer::cur_lex_type == CLOSE)
+                    {
+                        break;
                     }
                     else
                     {
-                        server_answer +=  to_string(Field->Long()) + "    ";
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
                     }
                 }
+                else
+                {
+                    if (lexer::cur_lex_type != STR)
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                    const_list.push_back(lexer::cur_lex_text);
+                    lexer::next();
+                    if (lexer::cur_lex_type == COMMA)
+                    {
+                        lexer::next();
+                    }
+                    else if (lexer::cur_lex_type == CLOSE)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }                    
+                }
             }
-            server_answer += "\n";
+            lexer::next();
+            if (lexer::cur_lex_type != END)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause close");
+            }
+
+            int j = 0;
+            for (Table->ReadFirst(), j = 0; !Table->IsEnd(); Table->ReadNext(), j++)
+            {
+                if (CheckIn(mask[j], const_list))
+                {    
+                    if (all_flag == false)
+                    {
+                        if (CheckIn(mask[j], const_list))
+                        {
+                            
+                        }
+                        for (int j = 0; j < columns.size(); j++)
+                        {
+                            IField * Field = Table->GetField(columns[j]);
+                            if (Field->OfType() == TEXT)
+                            {
+                                server_answer += Field->Text() + "    ";
+                            }
+                            else
+                            {
+                                server_answer +=  to_string(Field->Long()) + "    ";
+                            }
+                        }
+                    }
+                    else
+                    {
+                        
+                        for (int j = 0; j < Table->AmountCols(); j++)
+                        {
+                            
+                            IField * Field = Table->GetField(j);
+                            if (Field->OfType() == TEXT)
+                            {
+                                server_answer += Field->Text() + "    ";
+                            }
+                            else
+                            {
+                                server_answer +=  to_string(Field->Long()) + "    ";
+                            }
+                        }
+                    }
+                    server_answer += "\n";
+                }
+            }
         }
-        cout << server_answer << endl;
+        else if (alternative == 3)
+        {   
+            cout << "LogicExp" << endl;
+            lexer::next();
+            vector<bool> mask = LogicExpression(Table);
+            
+            int j = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), j++)
+            {
+                if (!mask[j])
+                {
+                    if (all_flag == false)
+                    {
+                        for (int j = 0; j < columns.size(); j++)
+                        {
+                            IField * Field = Table->GetField(columns[j]);
+                            if (Field->OfType() == TEXT)
+                            {
+                                server_answer += Field->Text() + "    ";
+                            }
+                            else
+                            {
+                                server_answer +=  to_string(Field->Long()) + "    ";
+                            }
+                        }
+                    }
+                    else
+                    {
+                        
+                        for (int j = 0; j < Table->AmountCols(); j++)
+                        {
+                            
+                            IField * Field = Table->GetField(j);
+                            if (Field->OfType() == TEXT)
+                            {
+                                server_answer += Field->Text() + "    ";
+                            }
+                            else
+                            {
+                                server_answer +=  to_string(Field->Long()) + "    ";
+                            }
+                        }
+                    }
+                    server_answer += "\n";
+                }
+            }
+            
+        }
+        else
+        {
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext())
+            {
+                if (all_flag == false)
+                {
+                    for (int j = 0; j < columns.size(); j++)
+                    {
+                        IField * Field = Table->GetField(columns[j]);
+                        if (Field->OfType() == TEXT)
+                        {
+                            server_answer += Field->Text() + "    ";
+                        }
+                        else
+                        {
+                            server_answer +=  to_string(Field->Long()) + "    ";
+                        }
+                    }
+                }
+                else
+                {
+                    
+                    for (int j = 0; j < Table->AmountCols(); j++)
+                    {
+                        
+                        IField * Field = Table->GetField(j);
+                        if (Field->OfType() == TEXT)
+                        {
+                            server_answer += Field->Text() + "    ";
+                        }
+                        else
+                        {
+                            server_answer +=  to_string(Field->Long()) + "    ";
+                        }
+                    }
+                }
+                server_answer += "\n";
+            }
+        }
+        
+        
+        
+        //cout << server_answer << endl;
         delete Table;
         
     }
@@ -550,6 +844,7 @@ namespace parser
     int Where()
     {
         int where_start = lexer::iter;
+        int current_char = lexer::c;
         int alternative = 0;
         {
             lexer::next();
@@ -578,6 +873,7 @@ namespace parser
         }
         
         lexer::iter = where_start;
+        lexer::c = current_char;
         return alternative;
     }
 
@@ -682,16 +978,22 @@ namespace parser
             throw SentenceException("Incorrectly constructed DELETE clause");
         }
         
-        ITable * Table = Mytable::Open(name);
-        LastRecord();
+        ITable * Table = MyTable::Open(name);
+        Table->LastRecord();
+        lexer::next();
+        /*
         if (Table->GetField(col)->OfType() == TEXT)
         {
-            update_list = TextExpression(Table);
+            vector<string> poliz;
+            vector<lexer> poliz;
         }
         else
         {
+            
             update_list = LongExpression(Table);
         }
+        */
+
         Where();
 
 
@@ -829,11 +1131,12 @@ namespace parser
     }
 
     // 
-    vector<string> & Expression(ITable * Table)
+    void Expression(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
     {
-        int buf_offset = lexer::iter;
-        Type exp_type = 0;
-        lexer::next();
+        
+        
+        Type exp_type = LONG;
+        
         if (lexer::cur_lex_type == STR)
         {
             exp_type = TEXT;
@@ -850,42 +1153,43 @@ namespace parser
         {
             exp_type = LONG;
         }
-        lexer::iter = buf_offset;
+        
         if (exp_type == TEXT)
         {
-            return TextExpression(Table);
+            cout << "TextExpr" << endl;
+            TextExpression(poliz, type_poliz);
         }
         else if (exp_type == LONG)
         {
-            return LongExpression(Table);
+            cout << "LongExpr" << endl;
+            LongExpression(poliz, type_poliz);
         }
         else
         {
-            throw SentenceException("Incorrectly constructed WHERE clause");
+            throw SentenceException("Incorrectly ff constructed WHERE clause");
         }
     }
 
-    vector<string> & TextExpression(ITable * Table)
+    void TextExpression(vector<string> & poliz, vector<lex_type_t> & type_poliz)
     {
-        lexer::next();
+        
         vector <string> res;
+        
         if (lexer::cur_lex_type == STR)
         {
-            vector <string> buf = {lexer::cur_lex_text};
-            res = buf;
+            poliz.push_back(lexer::cur_lex_text);
+            type_poliz.push_back(STR);
         }
         else if (lexer::cur_lex_type == IDN)
         {
-            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext())
-            {
-                res.push_back(Table->GetField(lexer::cur_lex_text)->Text());
-            }
+            poliz.push_back(lexer::cur_lex_text);
+            type_poliz.push_back(IDN);   
         }
         else
         {
             throw SentenceException("Incorrectly constructed WHERE clause");
         }
-        return res;
+        lexer::next();
     }
 
 
@@ -893,23 +1197,18 @@ namespace parser
     //  multiplication -> factor { [ MULT | DIV | MOD ] factor }
     //  factor -> LONG_FIELD | NUMBER | OPEN addition CLOSE
 
-    vector<string> & LongExpression(ITable * Table)
+    void LongExpression(vector<string> & poliz, vector<lex_type_t> & type_poliz)
     {
-        vector<string> poliz;
-        vector<lex_type_t> type_poliz;
+        cout << "add" << endl;
         _addition(poliz, type_poliz);
-        for (Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
-        {
-            
-        }
     }
 
     void _addition(vector<string> & poliz, vector<lex_type_t> & type_poliz)
     {
         enum lex_type_add {P, M};
         lex_type_add flag;
-
-        _multiplication();
+        cout << "mul" << endl;
+        _multiplication(poliz, type_poliz);
         while (lexer::cur_lex_type == ADD || lexer::cur_lex_type == SUB) {
             if (lexer::cur_lex_type == ADD)
             {
@@ -920,7 +1219,8 @@ namespace parser
                 flag = M;
             }
             lexer::next();
-            _multiplication();
+            cout << "mul" << endl;
+            _multiplication(poliz, type_poliz);
             if (flag == P)
             {
                 poliz.push_back("+");
@@ -941,7 +1241,8 @@ namespace parser
     {
         enum lex_type_mult {MU, DI, MO};
         lex_type_mult flag;
-        _factor();
+        cout << "fac" << endl;
+        _factor(poliz, type_poliz);
         while (lexer::cur_lex_type == ALL | lexer::cur_lex_type == DIV | lexer::cur_lex_type == MOD) {
             if (lexer::cur_lex_type == ALL)
             {
@@ -956,7 +1257,8 @@ namespace parser
                 flag = MO;
             }
             lexer::next();
-            _factor();
+            cout << "fac" << endl;
+            _factor(poliz, type_poliz);
             if (flag == MU)
             {
                 poliz.push_back("*");
@@ -977,6 +1279,7 @@ namespace parser
 
     void _factor(vector<string> & poliz, vector<lex_type_t> & type_poliz)
     {
+        cout << lexer::cur_lex_text << endl;
         if (lexer::cur_lex_type == IDN) {
             poliz.push_back(lexer::cur_lex_text);
             type_poliz.push_back(lexer::cur_lex_type);
@@ -989,9 +1292,9 @@ namespace parser
             
         } else if (lexer::cur_lex_type == OPEN) {
             lexer::next();
-            _addition();
+            _addition(poliz, type_poliz);
             if (lexer::cur_lex_type != CLOSE) {
-                throw std::logic_error("Unexpected token; closing parenthesis "
+                throw std::logic_error("hesis "
                         "is expected");
             }
             lexer::next();
@@ -1000,5 +1303,513 @@ namespace parser
                     "open parenthesis are expected");
         }
     }
+
+    vector<string> ComputePoliz(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
+    {
+        vector <int> st;
+        vector<string> mask;
+        for (Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+        {
+
+            st.clear();
+            for (int j = 0; j < poliz.size(); j++)
+            {
+                if (type_poliz[j] == IDN)
+                {
+                    st.push_back(Table->GetField(poliz[j])->Long());
+                } 
+                else if (type_poliz[j] == NUMBER)
+                {
+                    st.push_back(stol(poliz[j]));
+                }
+                else
+                {
+                    int r_val = st.back();
+                    st.pop_back();
+                    int l_val = st.back();
+                    st.pop_back();
+                    switch (type_poliz[j])
+                    {
+                        case ADD:
+                            st.push_back(l_val + r_val);
+                            break;
+                        case SUB:
+                            st.push_back(l_val - r_val);
+                            break;
+                        case ALL:
+                            st.push_back(l_val * r_val);
+                            break;
+                        case MOD:
+                            st.push_back(l_val % r_val);
+                            break;
+                        case DIV:
+                            st.push_back(l_val / r_val);
+                            break;
+                        default:
+                            throw SentenceException("Incorrectly constructed WHERE clause");
+                            break;                   
+                    }
+                }
+            }
+            mask.push_back(to_string(st.back()));
+        }
+        return mask;
+    }
+
+
+    bool CheckIn(string & str, vector <string> & list)
+    {
+        for (int i = 0; i < list.size(); i++)
+        {
+            if (list[i] == str)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    vector<bool> LogicExpression(ITable * Table)
+    {
+        vector <string> poliz;
+        vector<lex_type_t> type_poliz;
+        cout << "LogicAdd" << endl;
+        _logicaddition(poliz, type_poliz, Table);
+        vector <string> st;
+        vector <lex_type_t> type_st;
+        vector<bool> mask;
+        for (int i = 0; i < poliz.size(); i++)
+        {
+            cout << poliz[i] << endl;
+            
+        }
+        cout << lexer::cur_lex_type << endl;
+        
+        for (Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+        {
+            st.clear();
+            type_st.clear();
+
+            for (int j = 0; j < poliz.size(); j++)
+            {
+                
+                if (type_poliz[j] == IDN)
+                {
+                    if (Table->GetField(poliz[j])->OfType() == TEXT)
+                    {
+                        st.push_back(Table->GetField(poliz[j])->Text());
+                        type_st.push_back(STR);
+                    }
+                    else
+                    {
+                        st.push_back(to_string(Table->GetField(poliz[j])->Long()));
+                        type_st.push_back(NUMBER);
+                    }
+                } 
+                else if (type_poliz[j] == NUMBER)
+                {
+                    st.push_back(poliz[j]);
+                    type_st.push_back(NUMBER);
+                }
+                else if (type_poliz[j] == STR)
+                {
+                    st.push_back(poliz[j]);
+                    type_st.push_back(STR);
+                }
+                else
+                {
+                    string r_val_str = st.back();
+                    st.pop_back();
+                    
+                    lex_type_t r_val_type = type_st.back();
+                    type_st.pop_back();
+                    if (type_poliz[j] == NOT)
+                    {
+                        if (r_val_type == BOOL)
+                        {
+                            if (r_val_str == "TRUE")
+                            {
+                                st.push_back("FALSE");
+                                type_st.push_back(BOOL);
+                            }
+                            else
+                            {
+                                st.push_back("TRUE");
+                                type_st.push_back(BOOL);
+                            }    
+                        }
+                        else
+                        {
+                            throw SentenceException("Incorrectly constructed WHERE clause");
+                        } 
+                    }
+                    else
+                    {
+                        /* code */
+                    
+                    
+                        string l_val_str = st.back();
+                        st.pop_back();
+                        lex_type_t l_val_type = type_st.back();
+                        type_st.pop_back();
+                        if (l_val_type != r_val_type)
+                        {
+                            throw SentenceException("Incorrectly constructed WHERE clause");
+                        }
+                        cout << l_val_type << endl;
+                        if (l_val_type == STR)
+                        {
+                            cout << type_poliz[j] << endl;
+                            switch(type_poliz[j])
+                            {
+                                case LE:
+                                    if (l_val_str <= r_val_str)
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case L:
+                                    if (l_val_str < r_val_str)
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case B:
+                                    if (l_val_str > r_val_str)
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case BE:
+                                    if (l_val_str >= r_val_str)
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case NE:
+                                    if (l_val_str != r_val_str)
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break; 
+                                case EQUAL:
+                                    if (l_val_str == r_val_str)
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break; 
+                                default:
+                                    throw SentenceException("Incorrectly constructed WHERE clause");
+                                    break;
+                            }
+                        }
+                        else if (l_val_type == BOOL)
+                        {
+                            
+                            switch(type_poliz[j])
+                            {
+                                case AND:
+                                    if (l_val_str == "TRUE" && r_val_str == "TRUE")
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case OR:
+                                    if (l_val_str == "TRUE" || r_val_str == "TRUE")
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;    
+                                default:
+                                    throw SentenceException("Incorrectly constructed WHERE clause");
+                                    break;
+
+                            }   
+                        }
+                        else
+                        {
+                            cout << type_poliz[j] << endl;
+                            switch (type_poliz[j])
+                            {
+                                case ADD:
+                                    st.push_back( to_string( stol(l_val_str) + stol(r_val_str) ) );
+                                    type_st.push_back(NUMBER);
+                                    break;
+                                case SUB:
+                                    st.push_back( to_string( stol(l_val_str) - stol(r_val_str) ) );
+                                    type_st.push_back(NUMBER);
+                                    break;
+                                case ALL:
+                                    st.push_back( to_string( stol(l_val_str) * stol(r_val_str) ) );
+                                    type_st.push_back(NUMBER);
+                                    break;
+                                case MOD:
+                                    st.push_back( to_string( stol(l_val_str) % stol(r_val_str) ) );
+                                    type_st.push_back(NUMBER);
+                                    break;
+                                case DIV:
+                                    st.push_back( to_string( stol(l_val_str) / stol(r_val_str) ) );
+                                    type_st.push_back(NUMBER);
+                                    break;
+                                case LE:
+                                    if (stol(l_val_str) <= stol(r_val_str))
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case L:
+                                    if (stol(l_val_str) < stol(r_val_str))
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case B:
+                                    if (stol(l_val_str) > stol(r_val_str))
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case BE:
+                                    if (stol(l_val_str) >= stol(r_val_str))
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break;
+                                case NE:
+                                    if (stol(l_val_str) != stol(r_val_str))
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break; 
+                                case EQUAL:
+                                    if (stol(l_val_str) == stol(r_val_str))
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("TRUE");
+                                    }
+                                    else
+                                    {
+                                        type_st.push_back(BOOL);
+                                        st.push_back("FALSE");
+                                    }
+                                    break; 
+                                default:
+                                    throw SentenceException("Incorrectly constructed WHERE clause"); ///errr
+                                    break;                   
+                            }
+                        }
+                    }
+                }    
+            }
+            if (type_st.back() != BOOL)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            }
+            else
+            {
+                if (st.back() == "TRUE")
+                {
+                    mask.push_back(true);
+                }
+                else
+                {
+                    mask.push_back(false);
+                }
+            }
+        } 
+        
+        return mask; 
+    }
+
+     void _logicaddition(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
+    {
+        cout << "LogicMult" << endl;
+        _logicmultiplication(poliz, type_poliz, Table);
+        while (lexer::cur_lex_type == OR) {
+            lexer::next();
+            _logicmultiplication(poliz, type_poliz, Table);
+            poliz.push_back("||");
+            type_poliz.push_back(OR);
+        }
+    }
+
+    
+
+    void _logicmultiplication(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
+    {
+        cout << "LogicFact" << endl;
+        _logicfactor(poliz, type_poliz, Table);
+        while (lexer::cur_lex_type == AND) {
+            lexer::next();
+            _logicfactor(poliz, type_poliz, Table);
+            poliz.push_back("&&");
+            type_poliz.push_back(AND);
+        }
+    }
+
+    void _logicfactor(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
+    {
+        if (lexer::cur_lex_type == NOT) {
+            lexer::next();
+            cout << "LogicFact" << endl;
+            _logicfactor(poliz, type_poliz, Table);
+            poliz.push_back("!");
+            type_poliz.push_back(NOT);    
+        } else if (lexer::cur_lex_type == OPEN) {
+            
+            int buf_offset = lexer::iter;
+            int current_char = lexer::c;
+            bool is_exp_flag = true;
+            while(lexer::cur_lex_type != CLOSE)
+            {
+                if (lexer::cur_lex_type == AND || lexer::cur_lex_type == OR || lexer::cur_lex_type == NOT)
+                {
+                    is_exp_flag = false;
+                    break;
+                }
+                lexer::next();
+            }
+            lexer::iter = buf_offset;
+            lexer::c = current_char;
+            lexer::next();
+            if (is_exp_flag)
+            {
+                cout << "Expr" << endl;
+                Expression(poliz, type_poliz, Table);
+                string cmp;
+                lex_type_t cmp_type;
+                switch(lexer::cur_lex_type)
+                {
+                    case NE:
+                        cmp = "!=";
+                        cmp_type = NE;
+                        break;
+                    case EQUAL:
+                        cmp = "==";
+                        cmp_type = EQUAL;
+                        break;
+                    case LE:
+                        cmp = "<=";
+                        cmp_type = LE;
+                        break;
+                    case L:
+                        cmp = "<";
+                        cmp_type = L;
+                        break;
+                    case BE:
+                        cmp = ">=";
+                        cmp_type = BE;
+                        break;
+                    case B:
+                        cmp = ">";
+                        cmp_type = B;
+                        break; 
+                    default:
+                        throw SentenceException("Incorrectly constructed WHERE clause");
+                        break;
+                }                  
+                lexer::next();
+                cout << "Expr" << endl;
+                Expression(poliz, type_poliz, Table);
+                poliz.push_back(cmp);
+                type_poliz.push_back(cmp_type);
+                
+                
+                
+            }
+            else
+            {
+                _logicaddition(poliz, type_poliz, Table);
+                lexer::next();
+            }
+            if (lexer::cur_lex_type != CLOSE) {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            }
+            lexer::next();
+            
+        } else {
+            throw SentenceException("Incorrectly constructed WHERE clause");
+        }
+    }    
+
 }
 #endif

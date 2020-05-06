@@ -277,6 +277,10 @@ private:
             
             if (window[i]->OfType() == TEXT)
             {   
+                if (window[i]->Text().size() >= cols[i].size + 2) // 2 for '' // TODO delete ''
+                {
+                    throw TableException("The row size exceeds the field size in table: " + name);
+                }
                 if (write(fd, window[i]->Text().data(), cols[i].size) < 0)
                 {
                     throw TableException("Can't add a record to table " + name);
