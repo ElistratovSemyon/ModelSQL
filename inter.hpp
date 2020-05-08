@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <memory>
 #include <stack>
+#include <regex>
 #include "dbms.hpp"
 using namespace std;
 
@@ -85,7 +86,6 @@ namespace lexer
                     } 
                     else if (c == '\'') {
                         state = _str;
-                        cur_lex_text += c;
                     } 
                     else if (c == '=') {
                         state = _equal;
@@ -135,7 +135,6 @@ namespace lexer
                     if ( c != '\'') {
                         cur_lex_text += c;
                     } else {
-                        cur_lex_text += c;
                         cur_lex_type = STR;
                         state = OK;
                         iter++;
@@ -224,6 +223,15 @@ namespace lexer
                         cur_lex_text += c;
                         cur_lex_type = LE;
                         state = OK;
+                        iter++;
+                        if (iter < sentence.size())
+                        {
+                            c = sentence[iter];
+                        }
+                        else
+                        {
+                            throw ("Invalid lexem");
+                        } 
                     }
                     else
                     {
@@ -236,6 +244,15 @@ namespace lexer
                         cur_lex_text += c;
                         cur_lex_type = BE;
                         state = OK;
+                        iter++;
+                        if (iter < sentence.size())
+                        {
+                            c = sentence[iter];
+                        }
+                        else
+                        {
+                            throw ("Invalid lexem");
+                        }
                     }
                     else
                     {
@@ -248,16 +265,25 @@ namespace lexer
                         cur_lex_text += c;
                         cur_lex_type = NE;
                         state = OK;
+                        iter++;
+                        if (iter < sentence.size())
+                        {
+                            c = sentence[iter];
+                        }
+                        else
+                        {
+                            throw ("Invalid lexem");
+                        } 
                     }
                     else
                     {
-                        throw ("Invalid lexem 2");
+                        throw ("Invalid lexem");
                     }
                     break;      
                 case OK:
                     break;
                 default:
-                    throw ("Invalid lexem 3"); 
+                    throw ("Invalid lexem"); 
                     break;
             }
             
@@ -282,6 +308,7 @@ namespace lexer
                 
             }
         }
+        //
         cout << cur_lex_text << endl;        
     }
 
@@ -580,6 +607,11 @@ namespace parser
                 throw SentenceException("Incorrectly constructed WHERE clause");
             }
             string where_column = lexer::cur_lex_text;
+            Table->LastRecord();
+            if (Table->GetField(where_column)->OfType() == LONG)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause, only TEXT field allowed");
+            }
             bool not_flag = false;
             lexer::next();
             if (lexer::cur_lex_type == NOT)
@@ -603,7 +635,87 @@ namespace parser
                 throw SentenceException("Incorrectly constructed WHERE clause");   
             }
 
-            /// regex check!!!
+            
+            for(int i = 0; i < sample.size(); i++)
+            {
+                if (sample[i] == '%')
+                {
+                    sample[i] = '*';
+                }
+                else if (sample[i] == '_')
+                {
+                    sample[i] = '.';
+                }
+                else if (sample[i] == '.')
+                {
+                    sample[i] = '_';
+                }
+                else if (sample[i] == '*')
+                {
+                    sample[i] = '%';
+                }
+            }
+            if (sample[0] == '*')
+            {
+                sample.insert(0, "_?");
+            }
+
+
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext())
+            {
+                string buf_str = Table->GetField(where_column)->Text();
+                for (int i = 0; i < buf_str.size(); i++)
+                {
+                    if (buf_str[i] == '*')
+                    {
+                        buf_str[i] = '%';
+                    }
+                    else if (buf_str[i] == '.')
+                    {
+                        buf_str[i] = '_';
+                    }
+                }
+
+                std::regex sample_regex(sample);
+                if (regex_match(buf_str, sample_regex))
+                {
+                    if (all_flag == false)
+                    {
+                        for (int j = 0; j < columns.size(); j++)
+                        {
+                            IField * Field = Table->GetField(columns[j]);
+                            if (Field->OfType() == TEXT)
+                            {
+                                server_answer += Field->Text() + "    ";
+                            }
+                            else
+                            {
+                                server_answer +=  to_string(Field->Long()) + "    ";
+                            }
+                        }
+                    }
+                    else
+                    {
+                        
+                        for (int j = 0; j < Table->AmountCols(); j++)
+                        {
+                            
+                            IField * Field = Table->GetField(j);
+                            if (Field->OfType() == TEXT)
+                            {
+                                server_answer += Field->Text() + "    ";
+                            }
+                            else
+                            {
+                                server_answer +=  to_string(Field->Long()) + "    ";
+                            }
+                        }
+                    }
+                    server_answer += "\n";
+                }
+            }
+        
+
         }
         else if (alternative == 2)
         {
@@ -615,20 +727,37 @@ namespace parser
             bool is_long = true;
             bool not_flag = false;
             Expression(poliz, type_poliz, Table);
-            if ((type_poliz.size() == 1) && ((type_poliz.back() == STR) || (Table->GetField(type_poliz.back())->OfType() == TEXT)))
+        
+            if ((type_poliz.size() == 1) && ((type_poliz.back() == STR) || (Table->GetField(poliz.back())->OfType() == TEXT)))
             {
-                for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                if (type_poliz.back() == STR)
                 {
-                    mask.push_back(Table->GetField(poliz.back())->Text());
-                    poliz.clear();
+                    
+                    for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                    {
+                        mask.push_back(poliz[0]);
+                    }
                 }
+                else
+                {
+                    for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                    {
+                        mask.push_back(Table->GetField(poliz[0])->Text());
+                    }
+                }
+                
+                poliz.clear();
+                type_poliz.clear();
+                
                 is_long = false;
             }
             else
             {   
                 mask = ComputePoliz(poliz, type_poliz, Table);
+                poliz.clear();
+                type_poliz.clear();
             }
-            lexer::next();
+            
             if (lexer::cur_lex_type == NOT)
             {
                 not_flag = true;
@@ -704,14 +833,10 @@ namespace parser
             int j = 0;
             for (Table->ReadFirst(), j = 0; !Table->IsEnd(); Table->ReadNext(), j++)
             {
-                if (CheckIn(mask[j], const_list))
+                if (CheckIn(mask[j], const_list) ^ not_flag)
                 {    
                     if (all_flag == false)
                     {
-                        if (CheckIn(mask[j], const_list))
-                        {
-                            
-                        }
                         for (int j = 0; j < columns.size(); j++)
                         {
                             IField * Field = Table->GetField(columns[j]);
@@ -748,14 +873,13 @@ namespace parser
         }
         else if (alternative == 3)
         {   
-            cout << "LogicExp" << endl;
             lexer::next();
             vector<bool> mask = LogicExpression(Table);
             
             int j = 0;
             for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), j++)
             {
-                if (!mask[j])
+                if (mask[j])
                 {
                     if (all_flag == false)
                     {
@@ -833,10 +957,7 @@ namespace parser
                 server_answer += "\n";
             }
         }
-        
-        
-        
-        //cout << server_answer << endl;
+
         delete Table;
         
     }
@@ -916,7 +1037,7 @@ namespace parser
                     throw SentenceException("Incorrectly constructed INSERT clause");
                 }
                 Field->Text() = lexer::cur_lex_text;
-                cout << Field->Text() << endl;
+                
             }
             else
             {
@@ -1156,17 +1277,15 @@ namespace parser
         
         if (exp_type == TEXT)
         {
-            cout << "TextExpr" << endl;
             TextExpression(poliz, type_poliz);
         }
         else if (exp_type == LONG)
         {
-            cout << "LongExpr" << endl;
             LongExpression(poliz, type_poliz);
         }
         else
         {
-            throw SentenceException("Incorrectly ff constructed WHERE clause");
+            throw SentenceException("Incorrectly constructed WHERE clause");
         }
     }
 
@@ -1174,7 +1293,6 @@ namespace parser
     {
         
         vector <string> res;
-        
         if (lexer::cur_lex_type == STR)
         {
             poliz.push_back(lexer::cur_lex_text);
@@ -1199,7 +1317,6 @@ namespace parser
 
     void LongExpression(vector<string> & poliz, vector<lex_type_t> & type_poliz)
     {
-        cout << "add" << endl;
         _addition(poliz, type_poliz);
     }
 
@@ -1207,7 +1324,6 @@ namespace parser
     {
         enum lex_type_add {P, M};
         lex_type_add flag;
-        cout << "mul" << endl;
         _multiplication(poliz, type_poliz);
         while (lexer::cur_lex_type == ADD || lexer::cur_lex_type == SUB) {
             if (lexer::cur_lex_type == ADD)
@@ -1219,7 +1335,6 @@ namespace parser
                 flag = M;
             }
             lexer::next();
-            cout << "mul" << endl;
             _multiplication(poliz, type_poliz);
             if (flag == P)
             {
@@ -1241,7 +1356,6 @@ namespace parser
     {
         enum lex_type_mult {MU, DI, MO};
         lex_type_mult flag;
-        cout << "fac" << endl;
         _factor(poliz, type_poliz);
         while (lexer::cur_lex_type == ALL | lexer::cur_lex_type == DIV | lexer::cur_lex_type == MOD) {
             if (lexer::cur_lex_type == ALL)
@@ -1257,7 +1371,6 @@ namespace parser
                 flag = MO;
             }
             lexer::next();
-            cout << "fac" << endl;
             _factor(poliz, type_poliz);
             if (flag == MU)
             {
@@ -1279,7 +1392,6 @@ namespace parser
 
     void _factor(vector<string> & poliz, vector<lex_type_t> & type_poliz)
     {
-        cout << lexer::cur_lex_text << endl;
         if (lexer::cur_lex_type == IDN) {
             poliz.push_back(lexer::cur_lex_text);
             type_poliz.push_back(lexer::cur_lex_type);
@@ -1294,13 +1406,11 @@ namespace parser
             lexer::next();
             _addition(poliz, type_poliz);
             if (lexer::cur_lex_type != CLOSE) {
-                throw std::logic_error("hesis "
-                        "is expected");
+                throw SentenceException("");
             }
             lexer::next();
         } else {
-            throw std::logic_error("Unexpected token; identifier or number or "
-                    "open parenthesis are expected");
+            throw SentenceException("Incorrectly constructed WHERE clause");
         }
     }
 
@@ -1374,17 +1484,10 @@ namespace parser
     {
         vector <string> poliz;
         vector<lex_type_t> type_poliz;
-        cout << "LogicAdd" << endl;
         _logicaddition(poliz, type_poliz, Table);
         vector <string> st;
         vector <lex_type_t> type_st;
         vector<bool> mask;
-        for (int i = 0; i < poliz.size(); i++)
-        {
-            cout << poliz[i] << endl;
-            
-        }
-        cout << lexer::cur_lex_type << endl;
         
         for (Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
         {
@@ -1457,10 +1560,8 @@ namespace parser
                         {
                             throw SentenceException("Incorrectly constructed WHERE clause");
                         }
-                        cout << l_val_type << endl;
                         if (l_val_type == STR)
                         {
-                            cout << type_poliz[j] << endl;
                             switch(type_poliz[j])
                             {
                                 case LE:
@@ -1577,7 +1678,6 @@ namespace parser
                         }
                         else
                         {
-                            cout << type_poliz[j] << endl;
                             switch (type_poliz[j])
                             {
                                 case ADD:
@@ -1700,9 +1800,8 @@ namespace parser
         return mask; 
     }
 
-     void _logicaddition(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
+    void _logicaddition(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
     {
-        cout << "LogicMult" << endl;
         _logicmultiplication(poliz, type_poliz, Table);
         while (lexer::cur_lex_type == OR) {
             lexer::next();
@@ -1716,7 +1815,6 @@ namespace parser
 
     void _logicmultiplication(vector<string> & poliz, vector<lex_type_t> & type_poliz, ITable * Table)
     {
-        cout << "LogicFact" << endl;
         _logicfactor(poliz, type_poliz, Table);
         while (lexer::cur_lex_type == AND) {
             lexer::next();
@@ -1730,7 +1828,6 @@ namespace parser
     {
         if (lexer::cur_lex_type == NOT) {
             lexer::next();
-            cout << "LogicFact" << endl;
             _logicfactor(poliz, type_poliz, Table);
             poliz.push_back("!");
             type_poliz.push_back(NOT);    
@@ -1739,21 +1836,37 @@ namespace parser
             int buf_offset = lexer::iter;
             int current_char = lexer::c;
             bool is_exp_flag = true;
-            while(lexer::cur_lex_type != CLOSE)
+            int counter = 1;
+            while(counter != 0)
             {
-                if (lexer::cur_lex_type == AND || lexer::cur_lex_type == OR || lexer::cur_lex_type == NOT)
-                {
-                    is_exp_flag = false;
-                    break;
-                }
                 lexer::next();
+                switch(lexer::cur_lex_type)
+                {
+                    case AND:
+                    case OR:
+                    case NOT:
+                        is_exp_flag = false;
+                        counter = 0;
+                        break;
+                    case OPEN:
+                        counter++;
+                        break;
+                    case CLOSE:
+                        counter--;
+                        break;   
+                    case END:
+                        is_exp_flag = true;
+                        counter = 0;
+                    default:
+                        break;
+                }
+                
             }
             lexer::iter = buf_offset;
             lexer::c = current_char;
-            lexer::next();
+            lexer::next(); 
             if (is_exp_flag)
             {
-                cout << "Expr" << endl;
                 Expression(poliz, type_poliz, Table);
                 string cmp;
                 lex_type_t cmp_type;
@@ -1788,7 +1901,7 @@ namespace parser
                         break;
                 }                  
                 lexer::next();
-                cout << "Expr" << endl;
+
                 Expression(poliz, type_poliz, Table);
                 poliz.push_back(cmp);
                 type_poliz.push_back(cmp_type);
@@ -1799,13 +1912,11 @@ namespace parser
             else
             {
                 _logicaddition(poliz, type_poliz, Table);
-                lexer::next();
             }
             if (lexer::cur_lex_type != CLOSE) {
-                throw SentenceException("Incorrectly constructed WHERE clause");
+                throw SentenceException("Incorrectly constructed WHERE clause try");
             }
             lexer::next();
-            
         } else {
             throw SentenceException("Incorrectly constructed WHERE clause");
         }
