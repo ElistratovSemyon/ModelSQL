@@ -446,7 +446,7 @@ namespace parser
     {
         
         end_flag = false;
-        bool answer_flag = false;
+        answer_flag = false;
         server_answer.clear();
         lexer::init(Sentence);
         lexer::next();
@@ -497,13 +497,13 @@ namespace parser
                 InsertSen();
                 break;
             case UPDATE:
-                //UpdateSen();
+                UpdateSen();
                 break;
             case DROP:
                 DropSen();
                 break;
             case DELETE:                   
-                //DeleteSen();
+                DeleteSen();
                 break;
             case CREATE:
                 CreateSen();
@@ -528,6 +528,7 @@ namespace parser
     
     void SelectSen()
     {
+        answer_flag = true;
         lexer::next();
         // * | columns
         vector<string> columns;
@@ -583,7 +584,7 @@ namespace parser
         string name = lexer::cur_lex_text;
         
         server_answer.clear();
-        answer_flag = true;
+        
         ITable * Table = MyTable::Open(name);
         
         lexer::next();
@@ -641,43 +642,23 @@ namespace parser
                 if (sample[i] == '%')
                 {
                     sample[i] = '*';
+                    sample.insert(sample.begin() + i, '.');
+                    i++;
+
                 }
                 else if (sample[i] == '_')
                 {
                     sample[i] = '.';
                 }
-                else if (sample[i] == '.')
+                else if ((sample[i] == '.') || (sample[i] == '*'))
                 {
-                    sample[i] = '_';
-                }
-                else if (sample[i] == '*')
-                {
-                    sample[i] = '%';
+                    sample.insert(sample.begin() + i, '\\');
                 }
             }
-            if (sample[0] == '*')
-            {
-                sample.insert(0, "_?");
-            }
-
-
+            std::regex sample_regex(sample);
             for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext())
             {
-                string buf_str = Table->GetField(where_column)->Text();
-                for (int i = 0; i < buf_str.size(); i++)
-                {
-                    if (buf_str[i] == '*')
-                    {
-                        buf_str[i] = '%';
-                    }
-                    else if (buf_str[i] == '.')
-                    {
-                        buf_str[i] = '_';
-                    }
-                }
-
-                std::regex sample_regex(sample);
-                if (regex_match(buf_str, sample_regex))
+                if (regex_match(Table->GetField(where_column)->Text(), sample_regex) ^ not_flag)
                 {
                     if (all_flag == false)
                     {
@@ -824,11 +805,7 @@ namespace parser
                     }                    
                 }
             }
-            lexer::next();
-            if (lexer::cur_lex_type != END)
-            {
-                throw SentenceException("Incorrectly constructed WHERE clause close");
-            }
+            
 
             int j = 0;
             for (Table->ReadFirst(), j = 0; !Table->IsEnd(); Table->ReadNext(), j++)
@@ -920,6 +897,7 @@ namespace parser
         }
         else
         {
+            lexer::next();
             for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext())
             {
                 if (all_flag == false)
@@ -957,10 +935,334 @@ namespace parser
                 server_answer += "\n";
             }
         }
-
+        lexer::next();
+        if (lexer::cur_lex_type != END)
+        {
+            throw SentenceException("Incorrectly constructed UPDATE clause");
+        }
         delete Table;
         
     }
+
+    void UpdateSen()
+    {
+        vector<string> update_list;
+        lexer::next();
+        if (lexer::cur_lex_type != IDN)
+        {
+            throw SentenceException("Incorrectly constructed DELETE clause");
+        }
+        string name = lexer::cur_lex_text;
+        lexer::next();
+        if (lexer::cur_lex_type != SET)
+        {
+            throw SentenceException("Incorrectly constructed DELETE clause");
+        }
+        lexer::next();
+        if (lexer::cur_lex_type != IDN)
+        {
+            throw SentenceException("Incorrectly constructed DELETE clause");
+        }
+        string update_col = lexer::cur_lex_text;
+        lexer::next();
+        if (lexer::cur_lex_type != EQUAL)
+        {
+            throw SentenceException("Incorrectly constructed DELETE clause");
+        }
+        
+        ITable * Table = MyTable::Open(name);
+        Table->LastRecord();
+        lexer::next();
+        bool is_long_exp = false;
+        if (Table->GetField(update_col)->OfType() == TEXT)
+        {
+            vector<string> poliz;
+            vector<lex_type_t> type_poliz;
+            TextExpression(poliz, type_poliz);
+            if (type_poliz.back() == STR)
+            {
+                
+                for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                {
+                    update_list.push_back(poliz[0]);
+                }
+            }
+            else
+            {
+                for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                {
+                    update_list.push_back(Table->GetField(poliz[0])->Text());
+                }
+            }
+            is_long_exp = false;   
+            poliz.clear();
+            type_poliz.clear();
+        }
+        else
+        {
+            vector<string> poliz;
+            vector<lex_type_t> type_poliz;
+            LongExpression(poliz, type_poliz);
+            update_list = ComputePoliz(poliz, type_poliz, Table);
+            is_long_exp = true;
+        }
+        
+
+        int alternative = Where();
+        if (alternative == 0)
+        {
+            throw SentenceException("Incorrectly constructed WHERE clause");
+        }
+        else if (alternative == 1)
+        {
+            lexer::next();
+            if (lexer::cur_lex_type != IDN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            }
+            string where_column = lexer::cur_lex_text;
+            Table->LastRecord();
+            if (Table->GetField(where_column)->OfType() == LONG)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause, only TEXT field allowed");
+            }
+            bool not_flag = false;
+            lexer::next();
+            if (lexer::cur_lex_type == NOT)
+            {
+                not_flag = true;
+                lexer::next();
+            } 
+            if (lexer::cur_lex_type != LIKE)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            } 
+            lexer::next();
+            if (lexer::cur_lex_type != STR)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            } 
+            string sample = lexer::cur_lex_text;
+            lexer::next();
+            if (lexer::cur_lex_type != END)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+
+            for(int i = 0; i < sample.size(); i++)
+            {
+                if (sample[i] == '%')
+                {
+                    sample[i] = '*';
+                    sample.insert(sample.begin() + i, '.');
+                    i++;
+
+                }
+                else if (sample[i] == '_')
+                {
+                    sample[i] = '.';
+                }
+                else if ((sample[i] == '.') || (sample[i] == '*'))
+                {
+                    sample.insert(sample.begin() + i, '\\');
+                }
+            }
+            std::regex sample_regex(sample);
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                if (regex_match(Table->GetField(where_column)->Text(), sample_regex) ^ not_flag)
+                {
+                    if (!is_long_exp)
+                    {
+                        Table->GetField(update_col)->Text() = update_list[i];
+                    }
+                    else
+                    {
+                        Table->GetField(update_col)->Long() = stol(update_list[i]);
+                    }
+                    Table->Add();
+                }
+            }
+        }
+        else if (alternative == 2)
+        {
+            lexer::next();
+            vector<string> poliz;
+            vector<lex_type_t> type_poliz;
+            vector<string> mask;
+            bool is_long = true;
+            bool not_flag = false;
+            Expression(poliz, type_poliz, Table);
+        
+            if ((type_poliz.size() == 1) && ((type_poliz.back() == STR) || (Table->GetField(poliz.back())->OfType() == TEXT)))
+            {
+                if (type_poliz.back() == STR)
+                {
+                    
+                    for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                    {
+                        mask.push_back(poliz[0]);
+                    }
+                }
+                else
+                {
+                    for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                    {
+                        mask.push_back(Table->GetField(poliz[0])->Text());
+                    }
+                }
+                
+                poliz.clear();
+                type_poliz.clear();
+                
+                is_long = false;
+            }
+            else
+            {   
+                mask = ComputePoliz(poliz, type_poliz, Table);
+                poliz.clear();
+                type_poliz.clear();
+            }
+            
+            if (lexer::cur_lex_type == NOT)
+            {
+                not_flag = true;
+                lexer::next();
+            }
+            if (lexer::cur_lex_type != IN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+            lexer::next();
+            if (lexer::cur_lex_type != OPEN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+            lexer::next();
+            
+            if (lexer::cur_lex_type == CLOSE)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause close");
+            }
+            vector<string> const_list;
+            while (lexer::cur_lex_type != CLOSE)
+            {
+                if (is_long)
+                {
+                    if (lexer::cur_lex_type != NUMBER)
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                    const_list.push_back(to_string(stol(lexer::cur_lex_text)));
+                    lexer::next();
+                    if (lexer::cur_lex_type == COMMA)
+                    {
+                        lexer::next();
+                    }
+                    else if (lexer::cur_lex_type == CLOSE)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                }
+                else
+                {
+                    if (lexer::cur_lex_type != STR)
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                    const_list.push_back(lexer::cur_lex_text);
+                    lexer::next();
+                    if (lexer::cur_lex_type == COMMA)
+                    {
+                        lexer::next();
+                    }
+                    else if (lexer::cur_lex_type == CLOSE)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }                    
+                }
+            }
+            
+
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                if (CheckIn(mask[i], const_list) ^ not_flag)
+                {    
+                    if (!is_long_exp)
+                    {
+                        Table->GetField(update_col)->Text() = update_list[i];
+                    }
+                    else
+                    {
+                        Table->GetField(update_col)->Long() = stol(update_list[i]);
+                    }
+                }
+                Table->Add();
+            }
+        }
+        else if (alternative == 3)
+        {
+            lexer::next();
+            vector<bool> mask = LogicExpression(Table);
+            
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                if (mask[i])
+                {
+                    if (!is_long_exp)
+                    {
+                        Table->GetField(update_col)->Text() = update_list[i];
+                    }
+                    else
+                    {
+                        Table->GetField(update_col)->Long() = stol(update_list[i]);
+                    }
+                }
+                Table->Add();
+            }
+        }
+        else
+        {
+            lexer::next();
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                
+                cout << "cycl" << endl;
+                if (!is_long_exp)
+                {
+                    Table->GetField(update_col)->Text() = update_list[i];
+                }
+                else
+                {
+                    cout << "rewrite" << endl;
+                    Table->GetField(update_col)->Long() = stol(update_list[i]);
+                }
+                Table->Add();
+                
+            }
+        }
+        lexer::next();
+        if (lexer::cur_lex_type != END)
+        {
+            throw SentenceException("Incorrectly constructed UPDATE clause");
+        }
+        delete Table;
+
+    }
+
+    
 
     int Where()
     {
@@ -1073,52 +1375,7 @@ namespace parser
         delete Table;
     }
     
-    void UpdateSen()
-    {
-        vector<string> update_list;
-        lexer::next();
-        if (lexer::cur_lex_type != IDN)
-        {
-            throw SentenceException("Incorrectly constructed DELETE clause");
-        }
-        string name = lexer::cur_lex_text;
-        lexer::next();
-        if (lexer::cur_lex_type != SET)
-        {
-            throw SentenceException("Incorrectly constructed DELETE clause");
-        }
-        lexer::next();
-        if (lexer::cur_lex_type != IDN)
-        {
-            throw SentenceException("Incorrectly constructed DELETE clause");
-        }
-        string col = lexer::cur_lex_text;
-        lexer::next();
-        if (lexer::cur_lex_type != EQUAL)
-        {
-            throw SentenceException("Incorrectly constructed DELETE clause");
-        }
-        
-        ITable * Table = MyTable::Open(name);
-        Table->LastRecord();
-        lexer::next();
-        /*
-        if (Table->GetField(col)->OfType() == TEXT)
-        {
-            vector<string> poliz;
-            vector<lexer> poliz;
-        }
-        else
-        {
-            
-            update_list = LongExpression(Table);
-        }
-        */
-
-        Where();
-
-
-    }
+    
 
     void DeleteSen()
     {
@@ -1133,7 +1390,222 @@ namespace parser
             throw "No command";
         }
         ITable * Table = MyTable::Open(lexer::cur_lex_text);
-        //Where();
+        lexer::next();
+        int alternative = Where();
+        if (alternative == 0)
+        {
+            throw SentenceException("Incorrectly constructed WHERE clause");
+        }
+        else if (alternative == 1)
+        {
+            lexer::next();
+            if (lexer::cur_lex_type != IDN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            }
+            string where_column = lexer::cur_lex_text;
+            Table->LastRecord();
+            if (Table->GetField(where_column)->OfType() == LONG)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause, only TEXT field allowed");
+            }
+            bool not_flag = false;
+            lexer::next();
+            if (lexer::cur_lex_type == NOT)
+            {
+                not_flag = true;
+                lexer::next();
+            } 
+            if (lexer::cur_lex_type != LIKE)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            } 
+            lexer::next();
+            if (lexer::cur_lex_type != STR)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");
+            } 
+            string sample = lexer::cur_lex_text;
+            lexer::next();
+            if (lexer::cur_lex_type != END)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+
+            for(int i = 0; i < sample.size(); i++)
+            {
+                if (sample[i] == '%')
+                {
+                    sample[i] = '*';
+                    sample.insert(sample.begin() + i, '.');
+                    i++;
+
+                }
+                else if (sample[i] == '_')
+                {
+                    sample[i] = '.';
+                }
+                else if ((sample[i] == '.') || (sample[i] == '*'))
+                {
+                    sample.insert(sample.begin() + i, '\\');
+                }
+            }
+            std::regex sample_regex(sample);
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                if (regex_match(Table->GetField(where_column)->Text(), sample_regex) ^ not_flag)
+                {
+                    Table->Delete();
+                }
+            }
+        }
+        else if (alternative == 2)
+        {
+            lexer::next();
+            vector<string> poliz;
+            vector<lex_type_t> type_poliz;
+            vector<string> mask;
+            bool is_long = true;
+            bool not_flag = false;
+            Expression(poliz, type_poliz, Table);
+        
+            if ((type_poliz.size() == 1) && ((type_poliz.back() == STR) || (Table->GetField(poliz.back())->OfType() == TEXT)))
+            {
+                if (type_poliz.back() == STR)
+                {
+                    
+                    for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                    {
+                        mask.push_back(poliz[0]);
+                    }
+                }
+                else
+                {
+                    for(Table->ReadFirst(); ! Table->IsEnd(); Table->ReadNext())
+                    {
+                        mask.push_back(Table->GetField(poliz[0])->Text());
+                    }
+                }
+                
+                poliz.clear();
+                type_poliz.clear();
+                
+                is_long = false;
+            }
+            else
+            {   
+                mask = ComputePoliz(poliz, type_poliz, Table);
+                poliz.clear();
+                type_poliz.clear();
+            }
+            
+            if (lexer::cur_lex_type == NOT)
+            {
+                not_flag = true;
+                lexer::next();
+            }
+            if (lexer::cur_lex_type != IN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+            lexer::next();
+            if (lexer::cur_lex_type != OPEN)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause");   
+            }
+            lexer::next();
+            
+            if (lexer::cur_lex_type == CLOSE)
+            {
+                throw SentenceException("Incorrectly constructed WHERE clause close");
+            }
+            vector<string> const_list;
+            while (lexer::cur_lex_type != CLOSE)
+            {
+                if (is_long)
+                {
+                    if (lexer::cur_lex_type != NUMBER)
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                    const_list.push_back(to_string(stol(lexer::cur_lex_text)));
+                    lexer::next();
+                    if (lexer::cur_lex_type == COMMA)
+                    {
+                        lexer::next();
+                    }
+                    else if (lexer::cur_lex_type == CLOSE)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                }
+                else
+                {
+                    if (lexer::cur_lex_type != STR)
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }
+                    const_list.push_back(lexer::cur_lex_text);
+                    lexer::next();
+                    if (lexer::cur_lex_type == COMMA)
+                    {
+                        lexer::next();
+                    }
+                    else if (lexer::cur_lex_type == CLOSE)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        throw SentenceException("Incorrectly constructed WHERE clause close");
+                    }                    
+                }
+            }
+            
+
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                if (CheckIn(mask[i], const_list) ^ not_flag)
+                {    
+                    Table->Delete();                }
+            }
+        }
+        else if (alternative == 3)
+        {
+            lexer::next();
+            vector<bool> mask = LogicExpression(Table);
+            
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                if (mask[i])
+                {
+                    Table->Delete();
+                }
+            }
+        }
+        else
+        {
+            lexer::next();
+            int i = 0;
+            for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), i++)
+            {
+                Table->Delete();            
+            }
+        }
+        lexer::next();
+        if (lexer::cur_lex_type != END)
+        {
+            throw SentenceException("Incorrectly constructed UPDATE clause");
+        }
+        delete Table;
+
 
     }
     
