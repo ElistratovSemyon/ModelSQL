@@ -1,80 +1,22 @@
 #include "sock_wrap.hpp"
 using namespace std;
 
-
-
-ModelSQL::Exception::Exception (int errcode ) : m_ErrCode(errcode) {}
-void  ModelSQL::Exception::Report ()
+socket_shell::Exception::Exception (int errcode ) : m_ErrCode(errcode) {}
+void  socket_shell::Exception::Report ()
 {
     cout << "Error with number: " << m_ErrCode << endl;
 }
        
-
-ModelSQL::SocketException::SocketException (SocketExceptionCode errcode): Exception(errcode){}
+socket_shell::SocketException::SocketException (SocketExceptionCode errcode): Exception(errcode){}
           
-ModelSQL::SocketAddress::SocketAddress () : m_pAddr(NULL) {} // initialize structure
-ModelSQL::SocketAddress::~SocketAddress () {}
-
-ModelSQL::SocketAddress::operator struct sockaddr * ()
-{
-    return (struct sockaddr *) m_pAddr;
-}
-
-
-    
-ModelSQL::InSocketAddress::InSocketAddress (const char * HostName, short PortNum)
-{
-    struct sockaddr_in * sin = new sockaddr_in();
-    sin->sin_family = AF_INET;
-    sin->sin_port = htons (PortNum);
-    struct hostent *hp;
-
-    
-    // get host
-    if ((hp = gethostbyname (HostName)) == NULL) {
-        perror(0);
-        throw SocketException(SocketException::ESE_SOCKHOSTNAME);
-    }
-    // copy address to structure 
-    memcpy ( &(sin->sin_addr), hp->h_addr, hp->h_length);
-    m_pAddr = sin;
-}
-
-ModelSQL::InSocketAddress::InSocketAddress (const InSocketAddress & x)
-{
-    m_pAddr = new sockaddr_in();
-    m_pAddr->sin_family = AF_INET;
-    m_pAddr->sin_port =  x.m_pAddr->sin_port;
-    // copy address to structure
-    memcpy ((void *) (&(m_pAddr->sin_addr)), (const void *) &((x.m_pAddr)->sin_addr),  
-        (size_t) sizeof(x.m_pAddr->sin_addr));
-}
-ModelSQL::InSocketAddress::~InSocketAddress ()
-{
-    delete m_pAddr;
-}
-int ModelSQL::InSocketAddress::GetLength ()
-{
-    return sizeof(*m_pAddr);
-}
-
-
-ModelSQL::InSocketAddress::SocketAddress * ModelSQL::InSocketAddress::Clone()
-{
-    ModelSQL::InSocketAddress * tmp = new ModelSQL::InSocketAddress(*this);
-    return tmp;
-}
-
-
-    
-ModelSQL::BaseSocket::BaseSocket (int sd, SocketAddress * pAddr): m_Socket(sd), m_pAddr(pAddr) {}
-ModelSQL::BaseSocket::~ BaseSocket()
+socket_shell::BaseSocket::BaseSocket (int sd, sockaddr_in * pAddr): m_Socket(sd), m_pAddr(pAddr) {}
+socket_shell::BaseSocket::~ BaseSocket()
 {
     close(m_Socket);
     //shutdown(m_Socket, RDWR);
     delete m_pAddr;
 }
-void ModelSQL::BaseSocket::Write(void * buf, int len)
+void socket_shell::BaseSocket::Write(void * buf, int len)
 {
     if (send(m_Socket, buf, len, 0) < 0)
     {
@@ -82,7 +24,7 @@ void ModelSQL::BaseSocket::Write(void * buf, int len)
         throw SocketException(SocketException::ESE_SOCKSEND);
     }
 }
-void ModelSQL::BaseSocket::PutChar(int c)
+void socket_shell::BaseSocket::PutChar(int c)
 {
     if (send(m_Socket, &c, sizeof(c), 0) < 0)
     {
@@ -90,7 +32,7 @@ void ModelSQL::BaseSocket::PutChar(int c)
         throw SocketException(SocketException::ESE_SOCKSEND);
     }
 }
-void ModelSQL::BaseSocket::PutString(const char * str)
+void socket_shell::BaseSocket::PutString(const char * str)
 {
     if (send(m_Socket, str, strlen(str), 0) < 0)
     {
@@ -99,7 +41,7 @@ void ModelSQL::BaseSocket::PutString(const char * str)
     }
     
 }
-void ModelSQL::BaseSocket::PutString(const std::string& s)
+void socket_shell::BaseSocket::PutString(const std::string& s)
 {
     if (send(m_Socket, s.data(), s.size(), 0) < 0)
     {
@@ -107,7 +49,7 @@ void ModelSQL::BaseSocket::PutString(const std::string& s)
         throw SocketException(SocketException::ESE_SOCKSEND);
     }
 }
-int ModelSQL::BaseSocket::Read (void * buf, int len)
+int socket_shell::BaseSocket::Read (void * buf, int len)
 {
     int res;
     if ((res = recv(m_Socket, buf, len, 0)) < 0)
@@ -117,7 +59,7 @@ int ModelSQL::BaseSocket::Read (void * buf, int len)
     }
     return res;
 }
-int ModelSQL::BaseSocket::GetChar()
+int socket_shell::BaseSocket::GetChar()
 {
     int c = 0;
     if (recv(m_Socket, &c, sizeof(char), 0) < 0)
@@ -128,7 +70,7 @@ int ModelSQL::BaseSocket::GetChar()
     return c;
 }
 
-std::string ModelSQL::BaseSocket::GetString()
+std::string socket_shell::BaseSocket::GetString()
 {
     std::vector<char> buffer(MAX_BUF_LENGTH, 0);
     std::string rcv;  
@@ -153,18 +95,33 @@ std::string ModelSQL::BaseSocket::GetString()
 }
 
 
-int ModelSQL::BaseSocket::GetSockDescriptor()
+int socket_shell::BaseSocket::GetSockDescriptor()
 {
     return m_Socket;
 }
-    
 
-
-    
-void ModelSQL::ClientSocket::Connect()
+struct sockaddr_in * socket_shell::BaseSocket::ConvertAddress(const char * HostName, short PortNum)
 {
-    socklen_t len = m_pAddr->GetLength();
-    if ( connect( m_Socket, (struct sockaddr *) *m_pAddr, len) < 0 ) 
+    struct sockaddr_in * sin = new sockaddr_in();
+    sin->sin_family = AF_INET;
+    sin->sin_port = htons (PortNum);
+    struct hostent *hp;
+
+    // get host
+    if ((hp = gethostbyname (HostName)) == NULL) {
+        perror(0);
+        throw SocketException(SocketException::ESE_SOCKHOSTNAME);
+    }
+    // copy address to structure 
+    memcpy ( &(sin->sin_addr), hp->h_addr, hp->h_length);
+    m_pAddr = sin;
+    return sin;
+}
+
+
+void socket_shell::ClientSocket::Connect()
+{
+    if ( connect( m_Socket, (struct sockaddr *) m_pAddr, sizeof(*m_pAddr)) < 0 ) 
     {
         perror(0);
         throw SocketException(SocketException::ESE_SOCKCONN);
@@ -172,33 +129,32 @@ void ModelSQL::ClientSocket::Connect()
 }
    
 
-
-ModelSQL::BaseSocket * ModelSQL::ServerSocket::Accept()
+socket_shell::BaseSocket * socket_shell::ServerSocket::Accept()
 {
-    //sockaddr * fromsin = new InSocketAddress();
-    socklen_t len = m_pAddr->GetLength();
     int d;
-    if((d = accept ( m_Socket, (struct sockaddr *) *m_pAddr, &len)) < 0){
+    socklen_t size = sizeof(*m_pAddr);
+    if((d = accept ( m_Socket, (struct sockaddr *) m_pAddr, &size)) < 0){
         perror (0);
         throw SocketException(SocketException::ESE_SOCKACCEPT);
     }
-    BaseSocket * s = new ModelSQL::BaseSocket(d, m_pAddr->Clone());
-    OnAccept(s);
+    sockaddr_in * new_addr = new struct sockaddr_in;
+    *new_addr = *m_pAddr;
+    BaseSocket * s = new socket_shell::BaseSocket(d, new_addr);
     
     return s;
 }
 
-void ModelSQL::ServerSocket::Bind()
+void socket_shell::ServerSocket::Bind()
 {
     // in c++11 appeared new function bind, so must specified global namespace
-    int a = ::bind(  m_Socket, (struct sockaddr *) *m_pAddr, m_pAddr->GetLength());
+    int a = ::bind(  m_Socket, (struct sockaddr *) m_pAddr, sizeof(*m_pAddr));
     if ( a < 0 ){
         perror(0);
         throw SocketException(SocketException::ESE_SOCKBIND);
     }       
 }
 
-void ModelSQL::ServerSocket::Listen(int BackLog)
+void socket_shell::ServerSocket::Listen(int BackLog)
 {
     if ( listen ( m_Socket, BackLog) < 0 ) {
         perror(0);
@@ -206,24 +162,21 @@ void ModelSQL::ServerSocket::Listen(int BackLog)
     }
 }
 
-void ModelSQL::ServerSocket::OnAccept (BaseSocket * pConn) {}
-   
-ModelSQL::InClientSocket::InClientSocket(const char * HostName, short PortNum)
+socket_shell::ClientSocket::ClientSocket(const char * HostName, short PortNum)
 {
-    m_pAddr = new ModelSQL::InSocketAddress(HostName, PortNum);
+    m_pAddr = ConvertAddress(HostName, PortNum);
     if ((m_Socket = socket (AF_INET, SOCK_STREAM, 0)) < 0)
     {
         throw SocketException(SocketException::ESE_SOCKCREATE);
     }
+    Connect();
 }
-    
-
-    
-ModelSQL::InServerSocket::InServerSocket(short PortNum)
+        
+socket_shell::ServerSocket::ServerSocket(short PortNum)
 {
     char HostName[64];
     gethostname (HostName, sizeof (HostName));
-    m_pAddr = new ModelSQL::InSocketAddress(HostName, PortNum);
+    m_pAddr = ConvertAddress(HostName, PortNum);
     if ((m_Socket = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
         throw SocketException(SocketException::ESE_SOCKCREATE);
     }

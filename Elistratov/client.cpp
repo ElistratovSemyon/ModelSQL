@@ -4,7 +4,7 @@
 #include <cstdio>
 #include "sock_wrap.hpp"
 
-using namespace ModelSQL;
+using namespace socket_shell;
 #define PORT_NUM 8008 
 
 int main(int argc, char* argv[])
@@ -19,9 +19,8 @@ int main(int argc, char* argv[])
             exit (-1);
         }
         // create socket
-        InClientSocket sock(host, PORT_NUM);
+        ClientSocket sock(host, PORT_NUM);
         
-        sock.Connect();
         // start work
         while(true)
         {

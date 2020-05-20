@@ -561,9 +561,10 @@ void parser::SelectSen()
                 {
                     if (cols[j].name == columns[i])
                     {
-                        sizes.push_back(max<int>(cols[j].size, cols[j].name.size()));
+                        int buf = (max<int>(cols[j].size, cols[j].name.size()));
+                        sizes.push_back(buf);
                         server_answer += cols[j].name;
-                        for (int j = 0; j < (sizes[j] - cols[j].name.size()); j++)
+                        for (int k = 0; k < (buf - cols[j].name.size()); k++)
                         {
                             server_answer += " ";
                         }
@@ -722,9 +723,10 @@ void parser::SelectSen()
                     {
                         if (cols[j].name == columns[i])
                         {
-                            sizes.push_back(max<int>(cols[j].size, cols[j].name.size()));
+                            int buf = (max<int>(cols[j].size, cols[j].name.size()));
                             server_answer += cols[j].name;
-                            for (int k = 0; k < (sizes[j] - cols[j].name.size()); k++)
+                            sizes.push_back(buf);
+                            for (int k = 0; k < (buf - cols[j].name.size()); k++)
                             {
                                 server_answer += " ";
                             }
@@ -748,7 +750,7 @@ void parser::SelectSen()
                             if (Field->OfType() == TEXT)
                             {
                                 server_answer += Field->Text();
-                                for (int k = 0; k < (sizes[j] -Field->Text().size()); k++)
+                                for (int k = 0; k < (sizes[j] - Field->Text().size()); k++)
                                 {
                                     server_answer += " ";
                                 }
@@ -916,9 +918,10 @@ void parser::SelectSen()
                     {
                         if (cols[j].name == columns[i])
                         {
-                            sizes.push_back(max<int>(cols[j].size, cols[j].name.size()));
+                            int buf = (max<int>(cols[j].size, cols[j].name.size()));
                             server_answer += cols[j].name;
-                            for (int j = 0; j < (sizes[j] - cols[j].name.size()); j++)
+                            sizes.push_back(buf);
+                            for (int k = 0; k < (buf - cols[j].name.size()); k++)
                             {
                                 server_answer += " ";
                             }
@@ -951,7 +954,7 @@ void parser::SelectSen()
                             {
                                 string str = to_string(Field->Long());
                                 server_answer +=  str;
-                                for (int k = 0; k < (sizes[j] -Field->Text().size()); k++)
+                                for (int k = 0; k < (sizes[j] - str.size()); k++)
                                 {
                                     server_answer += " ";
                                 }
@@ -979,7 +982,7 @@ void parser::SelectSen()
                             {
                                 string str = to_string(Field->Long());
                                 server_answer +=  str;
-                                for (int k = 0; k < (sizes[j] -Field->Text().size()); k++)
+                                for (int k = 0; k < (sizes[j] - str.size()); k++)
                                 {
                                     server_answer += " ";
                                 }
@@ -1020,24 +1023,27 @@ void parser::SelectSen()
             }
             else
             {
+                
                 for (int i = 0; i < columns.size(); i++)
                 {
                     for (int j = 0; j < cols.size(); j++)
                     {
                         if (cols[j].name == columns[i])
                         {
-                            sizes.push_back(max<int>(cols[j].size, cols[j].name.size()));
+                            int buf = max<int>(cols[j].size, cols[j].name.size());
                             server_answer += cols[j].name;
-                            for (int j = 0; j < (sizes[j] - cols[j].name.size()); j++)
+                            int b = cols[j].name.size();
+                            sizes.push_back(buf);
+                            for (int k = 0; k < (buf - b); k++)
                             {
                                 server_answer += " ";
                             }
                             server_answer += "    ";
                         }
+                        
                     }  
                 }      
             }
-            
             server_answer += "\n";
             for (Table->ReadFirst(); !Table->IsEnd(); Table->ReadNext(), j++)
             {
@@ -1061,7 +1067,7 @@ void parser::SelectSen()
                             {
                                 string str = to_string(Field->Long());
                                 server_answer +=  str;
-                                for (int k = 0; k < (sizes[j] -Field->Text().size()); k++)
+                                for (int k = 0; k < (sizes[j] - str.size()); k++)
                                 {
                                     server_answer += " ";
                                 }

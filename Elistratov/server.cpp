@@ -10,80 +10,77 @@ extern bool parser::answer_flag;
 extern bool parser::end_flag;
 extern std::string parser::server_answer;
 
-class MyServerSocket : public ModelSQL::InServerSocket {
-public:
-    MyServerSocket () : InServerSocket (PORT_NUM) {}
-protected:
-    void OnAccept (BaseSocket * pConn)
+
+void Processing (socket_shell::BaseSocket * pConn)
+{
+    // print start string
+    pConn->PutString(">> ");
+    // until client send EXIT or turn off
+    while(parser::end_flag == false)
     {
-        // print start string
-        pConn->PutString(">> ");
-        // until client send EXIT or turn off
-        while(parser::end_flag == false)
+        try
         {
-            try
+            while (true)
             {
-                while (true)
+                
+                std::string sentence =  pConn->GetString();
+                if (sentence.size() < 4)
                 {
-                    
-                    std::string sentence =  pConn->GetString();
-                    if (sentence.size() < 4)
-                    {
-                        throw parser::SentenceException("Incorrectly clause");
-                    }
-                    parser::init(sentence);
-                    parser::Start();
-                    if (parser::end_flag == true)
-                    {
-                        pConn->PutString("#");
-                        sleep(1);
-                        break;
-                    }
-                    
-                    if (parser::answer_flag == true)
-                    {
-                        pConn->PutString(parser::server_answer + ">> ");                       
-                    }
-                    else
-                    {
-                        pConn->PutString(">> ");
-                    }
+                    throw parser::SentenceException("Incorrectly clause");
+                }
+                parser::init(sentence);
+                parser::Start();
+                if (parser::end_flag == true)
+                {
+                    pConn->PutString("#");
+                    sleep(1);
+                    break;
                 }
                 
+                if (parser::answer_flag == true)
+                {
+                    pConn->PutString(parser::server_answer + ">> ");                       
+                }
+                else
+                {
+                    pConn->PutString(">> ");
+                }
             }
-            catch(parser::SentenceException & e)
-            {
-                pConn->PutString(e.Message + "\n" + ">> ");
-            }
-            catch(TableException & e)
-            {
-                pConn->PutString(e.Message + "\n" + ">> ");
-            }
-            catch(const char * s)
-            {
-                std::string str = s;
-                pConn->PutString(str + "\n" + ">> ");
-            }
-            catch(...)
-            {
-                pConn->PutString(std::string{"ERROR."} + "\n" + ">> ");
-            }
+            
         }
-        
-        delete pConn;
+        catch(parser::SentenceException & e)
+        {
+            pConn->PutString(e.Message + "\n" + ">> ");
+        }
+        catch(TableException & e)
+        {
+            pConn->PutString(e.Message + "\n" + ">> ");
+        }
+        catch(const char * s)
+        {
+            std::string str = s;
+            pConn->PutString(str + "\n" + ">> ");
+        }
+        catch(...)
+        {
+            pConn->PutString(std::string{"ERROR."} + "\n" + ">> ");
+        }
     }
-};
+    delete pConn;
+}
 
 int main(int argc, char* argv[])
 {
     try
     {
         // create server socket
-        MyServerSocket sock;
-        // start work with clients
-        sock.Accept();
+        socket_shell::ServerSocket sock(PORT_NUM);
+        // start work with clients    
+        // there might be loop    
+        socket_shell::BaseSocket * work_sock = sock.Accept();
+        Processing(work_sock);   
     }
-    catch (ModelSQL::Exception & e)
+    catch (socket_shell::Exception & e)
     {
         e.Report();
     }

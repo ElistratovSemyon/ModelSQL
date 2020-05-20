@@ -16,7 +16,7 @@
 
 using namespace std;
 
-namespace ModelSQL {
+namespace socket_shell {
     // Base Exception class
     class Exception {
     protected:
@@ -46,39 +46,11 @@ namespace ModelSQL {
     };
 
  
-
-    // Base abstract class for networks address
-    class SocketAddress {
-    protected:
-        struct sockaddr_in * m_pAddr;
-    public:
-        SocketAddress ();
-        virtual ~ SocketAddress ();
-        // get size of structure
-        virtual int GetLength() = 0;
-        // clone structure (copy)
-        virtual SocketAddress * Clone() = 0;
-        // transform to the base type
-        operator struct sockaddr * ();
-    };
-
-    // InSocketAddress -AF_INET socket address
-    class InSocketAddress : public SocketAddress {
-    public:
-        InSocketAddress (const char * HostName, short PortNum);
-        InSocketAddress (const InSocketAddress & x);
-        ~ InSocketAddress (); 
-        SocketAddress * Clone();
-        int GetLength();        
-    };
-
-
     // Base Socket class
     class BaseSocket {
     public:
         
-        explicit BaseSocket (int sd = -1, SocketAddress * pAddr = NULL);
-        
+        explicit BaseSocket (int sd = -1, sockaddr_in * pAddr = NULL);
         virtual ~ BaseSocket();
         // write to socket
         void Write(void * buf, int len);
@@ -92,45 +64,35 @@ namespace ModelSQL {
         std::string GetString();
         // return socket descriptor
         int GetSockDescriptor();
+        struct sockaddr_in * ConvertAddress(const char * HostName, short PortNum);
     protected:
+        
         int m_Socket;
-        SocketAddress * m_pAddr;
+        sockaddr_in * m_pAddr;
     };
 
 
-    // ClientSocket - base client socket class
+    // ClientSocket - client socket class
     class ClientSocket: public BaseSocket {
     public:
+        ClientSocket(const char * HostName, short PortNum);
+    private:
         // call connection socket function
         void Connect();
     };
 
-
-    // ServerSocket - base server socket class
+    // ServerSocket - server socket class
     class ServerSocket: public BaseSocket {
     public:
+        ServerSocket(short PortNum);
         BaseSocket * Accept();
-    protected:
+    private:
         // call bing socket function       
         void Bind();
         // call listen socket function
         void Listen(int BackLog);
-        // virtual function to communicate with client
-        virtual void OnAccept (BaseSocket * pConn);
     };
 
-
-    // InClientSocket - AF_INET client socket
-    class InClientSocket: public ClientSocket {
-    public:
-        InClientSocket(const char * HostName, short PortNum);
-    };
-
-    // InServerSocket - AF_INET server socket
-    class InServerSocket: public ServerSocket {
-    public:
-        InServerSocket(short PortNum);
-    };
 };
 
 #endif
